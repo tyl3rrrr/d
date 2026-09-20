@@ -27,6 +27,10 @@ const legacySupport = require('./legacy-support');
 const { handleAutoModCheck } = require('./automod-filter');
 const spotify = require('./spotify');
 const storage = require('./storage');
+const { setupWelcomeHandler } = require('./commands-welcome');
+const { setupLogHandlers } = require('./commands-logs');
+const { setupServerCountPresence } = require('./commands-bot-status');
+const { setupXPSystem } = require('./xp-system');
 
 // ---------------------------------------------------------------------------
 // BUGFIX "unendliche/doppelte Nachrichten": Die wahrscheinlichste Ursache
@@ -201,6 +205,11 @@ function setPresence(readyClient) {
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Eingeloggt als ${readyClient.user.tag}`);
   setPresence(readyClient);
+  
+  // Starte Server-Anzahl im Presence
+  setupServerCountPresence(readyClient);
+  
+  console.log(`🎉 Bot ist bereit! Lädt auf ${readyClient.guilds.cache.size} Servern.`);
 });
 
 // Zusätzliche Absicherung: jede Interaktions-ID (Slash-Command ODER Button)
@@ -331,5 +340,14 @@ if (spotify.isConfigured()) {
     console.log(`🎧 Spotify-OAuth-Callback-Server läuft auf Port ${port} (nur für /callback).`);
   });
 }
+
+// Setup Handler für Welcome-System
+setupWelcomeHandler(client);
+
+// Setup Handler für Logs
+setupLogHandlers(client);
+
+// Setup Handler für XP-System
+setupXPSystem(client);
 
 client.login(DISCORD_TOKEN);

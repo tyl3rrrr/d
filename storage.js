@@ -14,9 +14,11 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 
 function defaultData() {
   return {
-    guilds: {}, // guildId -> { ticketCategoryId, ticketStaffRoleId, logChannelId, ticketCounter, bannedWords }
+    guilds: {}, // guildId -> { ticketCategoryId, ticketStaffRoleId, logChannelId, ticketCounter, bannedWords, welcomeConfig, adminRoles, modRoles, xpBoard, botStatusConfig }
     warns: {}, // guildId -> { userId -> [ { reason, date, moderatorId } ] }
     spotify: {}, // discordUserId -> { accessToken, refreshToken, expiresAt }
+    xp: {}, // guildId -> { userId -> { xp, level } }
+    globalXP: {}, // userId -> { totalXP, highestLevel } (für globale Rangliste)
   };
 }
 
@@ -49,6 +51,10 @@ function reload() {
 }
 
 function getGuildSettings(guildId) {
+  return data.guilds[guildId] || {};
+}
+
+function getServerConfig(guildId) {
   return data.guilds[guildId] || {};
 }
 
@@ -103,8 +109,54 @@ function setSpotifyTokens(discordUserId, tokens) {
   saveData(data);
 }
 
+// XP-System
+function getXP(guildId, userId) {
+  const guild = data.xp[guildId] || {};
+  return guild[userId] || { xp: 0, level: 0 };
+}
+
+function setXP(guildId, userId, xp, level) {
+  if (!data.xp[guildId]) data.xp[guildId] = {};
+  data.xp[guildId][userId] = { xp: Math.max(0, xp), level: Math.max(0, level) };
+  saveData(data);
+  
+  // Globale XP aktualisieren
+  if (!data.globalXP) data.globalXP = {};
+  const globalEntry = data.globalXP[userId] || { totalXP: 0, highestLevel: 0 };
+  globalEntry.totalXP = (globalEntry.totalXP || 0) + Math.max(0, xp);
+  globalEntry.highestLevel = Math.max(globalEntry.highestLevel, level);
+  data.globalXP[userId] = globalEntry;
+  saveData(data);
+}
+
+function addXP(guildId, userId, amount) {
+  const current = getXP(guildId, userId);
+  const newXP = current.xp + amount;
+  setXP(guildId, userId, newXP, current.level);
+  return current.xp + amount;
+}
+
+function getGlobalXPBoard() {
+  if (!data.globalXP) data.globalXP = {};
+  return Object.entries(data.globalXP).map(([userId, data]) => ({
+    userId,
+    totalXP: data.totalXP,
+    highestLevel: data.highestLevel,
+  })).sort((a, b) => b.totalXP - a.totalXP);
+}
+
+function getGuildXPBoard(guildId) {
+  const guild = data.xp[guildId] || {};
+  return Object.entries(guild).map(([userId, userData]) => ({
+    userId,
+    xp: userData.xp,
+    level: userData.level,
+  })).sort((a, b) => b.xp - a.xp);
+}
+
 module.exports = {
   getGuildSettings,
+  getServerConfig,
   setGuildSetting,
   nextTicketNumber,
   addWarn,
@@ -113,4 +165,9 @@ module.exports = {
   getSpotifyTokens,
   setSpotifyTokens,
   reload,
+  getXP,
+  setXP,
+  addXP,
+  getGlobalXPBoard,
+  getGuildXPBoard,
 };

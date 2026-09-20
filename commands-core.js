@@ -174,67 +174,75 @@ const botinfo = {
 };
 
 // /help wird als Funktion exportiert, die die komplette Command-Liste braucht
-// (wird von commands.js mit der finalen Liste verdrahtet, um Zirkelbezüge zu vermeiden).
+// Auto-generiert aus allen verfügbaren Commands
 function buildHelpCommand(getAllCommands) {
   return {
     data: new SlashCommandBuilder().setName('help').setDescription('Zeigt alle verfügbaren Befehle'),
     async execute(interaction) {
       const all = getAllCommands();
 
-      const categories = {
-        '📌 Allgemein': ['antimdm', 'web', 'uptime', 'status', 'changelog', 'links', 'botinfo', 'ping', 'help'],
-        '🛡️ Moderation': [
-          'kick',
-          'ban',
-          'timeout',
-          'warn',
-          'clear',
-          'slowmode',
-          'lock',
-          'unlock',
-          'nickname',
-          'role',
-          'purge-user',
-          'say',
-          'automod-words',
-        ],
-        '🎫 Tickets': ['ticket-panel'],
-        '🧰 Sonstiges': [
-          'userinfo',
-          'serverinfo',
-          'avatar',
-          'poll',
-          'remindme',
-          'suggest',
-          'coinflip',
-          'dice',
-          '8ball',
-          'membercount',
-          'roleinfo',
-        ],
-        '👨‍💻 Developer': ['base64', 'hash', 'json', 'timestamp', 'uuid', 'snowflake', 'regex-test'],
-        '🎧 Spotify': ['spotify-login', 'spotify-nowplaying', 'spotify-play', 'spotify-pause', 'spotify-skip', 'spotify-search'],
-        '⚙️ Einstellungen & Admin': ['settings', 'reload'],
+      // Auto-Kategorisierung basierend auf Command-Namen
+      const categorizeCommand = (name) => {
+        if (['antimdm', 'web', 'uptime', 'changelog', 'links', 'botinfo', 'ping', 'help'].includes(name)) {
+          return '📌 Allgemein';
+        }
+        if (['kick', 'ban', 'timeout', 'warn', 'clear', 'slowmode', 'lock', 'unlock', 'nickname', 'role', 'purge-user', 'say', 'automod-words'].includes(name)) {
+          return '🛡️ Moderation';
+        }
+        if (['ticket-panel'].includes(name)) {
+          return '🎫 Tickets';
+        }
+        if (['xp-stats', 'xp-board', 'xp-set'].includes(name)) {
+          return '⭐ XP & Level';
+        }
+        if (['welcome-setup'].includes(name)) {
+          return '👋 Welcome-System';
+        }
+        if (['appearence', 'log-channel', 'settings'].includes(name)) {
+          return '⚙️ Einstellungen';
+        }
+        if (['status', 'bStatNow', 'adm-reload'].includes(name)) {
+          return '🤖 Bot-Verwaltung';
+        }
+        if (['userinfo', 'serverinfo', 'avatar', 'poll', 'remindme', 'suggest', 'coinflip', 'dice', 'eightball', 'membercount', 'roleinfo'].includes(name)) {
+          return '🧰 Utility & Fun';
+        }
+        return '🧰 Sonstiges';
       };
+
+      // Gruppiere Commands nach Kategorie
+      const categories = {};
+      for (const cmd of all) {
+        const name = cmd.data.name;
+        const category = categorizeCommand(name);
+        if (!categories[category]) categories[category] = [];
+        categories[category].push(cmd);
+      }
 
       const embed = new EmbedBuilder()
         .setTitle('📖 Befehlsübersicht')
         .setColor(0x5865f2)
+        .setDescription(`Insgesamt **${all.length}** Befehle verfügbar`)
         .setFooter({
-          text: 'Außerdem: !support <Anliegen> und !support config (Text-Befehl, kein Slash-Command)',
+          text: 'Tipp: /help <command> für mehr Infos | !support für Support (Text-Befehl)',
         });
 
-      for (const [category, names] of Object.entries(categories)) {
-        const lines = names
-          .map((name) => {
-            const cmd = all.find((c) => c.data.name === name);
-            if (!cmd) return null;
-            const desc = cmd.data.toJSON().description || '';
+      // Sortiere Kategorien und zeige Commands
+      for (const [category, cmds] of Object.entries(categories).sort()) {
+        const lines = cmds
+          .map((cmd) => {
+            const name = cmd.data.name;
+            const desc = cmd.data.toJSON().description || 'Keine Beschreibung';
             return `\`/${name}\` — ${desc}`;
           })
           .filter(Boolean);
+        
         if (lines.length > 0) {
-          embed.addFields({ name: category, value: lines.join('\n') });
+          embed.addFields({
+            name: `${category} (${lines.length})`,
+            value: lines.join('\n'),
+            inline: false,
+          });
         }
       }
 
