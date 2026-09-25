@@ -62,7 +62,50 @@ unklaren API-Fehler fehl, weil vorher lokal validiert wird.
 | `xp.js` / `xp-runtime.js` | XP-/Level-Kurve bzw. Laufzeit-Logik (Nachrichten-XP, Level-Rollen, Leaderboard-Update). |
 | `presence.js` | Bot-Online-Status (Discord-weit, siehe Einschränkung unten). |
 
-## 4. Umgesetzte Punkte (Auftrag 1-17)
+## 4. Nachträgliche Fehlerkorrekturen (nach deinem Test-Feedback)
+
+- **`/appearence color` -> "Missing guild feature":** Der Code schickte auch
+  für eine einzelne, normale Farbe das `colors`-Feld (Verlauf/holografisch),
+  das Discord nur mit "Enhanced Role Styles" akzeptiert - das lehnte JEDE
+  Farbeinstellung ab, egal ob der Server das Feature hatte oder nicht. Fix:
+  eine einfache Farbe (nur `primary`) nutzt jetzt direkt das klassische
+  `color`-Feld; nur bei `secondary`/`holographic` wird das `colors`-Feld
+  versucht (mit Fallback auf `color`, falls der Server es nicht unterstützt).
+- **`/automod setup` -> alle 5 Regeln "Invalid Form Body" / "MAX_RULES_OF_TYPE_EXCEEDED":**
+  Discord erlaubt je Regeltyp nur eine begrenzte Anzahl Regeln PRO SERVER
+  (z. B. max. 6 Keyword-Regeln), unabhängig davon, WER sie erstellt hat. Der
+  Code suchte bisher nur nach **eigenen** (vom Bot erstellten) Regeln mit
+  exakt passendem Namen - fand er keine, versuchte er eine neue anzulegen und
+  scheiterte, weil das Limit durch bereits vorhandene (z. B. aus einer
+  früheren Version oder manuell erstellte) Regeln bereits ausgeschöpft war.
+  Fix: `/automod setup` sucht jetzt zuerst unter **allen** vorhandenen Regeln
+  des Servers nach einer mit demselben Regeltyp und **übernimmt** diese
+  (benennt sie um, bestehende Wortlisten/Einstellungen bleiben erhalten),
+  statt erfolglos eine neue anzulegen. `/automod status` erkennt übernommene
+  Regeln jetzt ebenfalls korrekt als vorhanden.
+- **`/welcome-setup`: keine Nachricht, keine Rolle:** Die wahrscheinlichste
+  Ursache ist der privilegierte **„SERVER MEMBERS INTENT“** im Discord
+  Developer Portal - ist er nicht aktiviert, startet der Bot automatisch OHNE
+  ihn (siehe `index.js`, `INTENT_PLANS`), und Discord sendet dann NIE das
+  Beitritts-Event, unabhängig von der Konfiguration. `/welcome-setup` zeigt
+  das jetzt als deutliche Warnung direkt in der Antwort an, inkl. Link zum
+  Developer Portal und den genauen Klickpfad. Zusätzlich werden jetzt auch
+  **Bots** begrüßt (vorher bewusst ausgeschlossen, laut Rückmeldung nicht
+  gewünscht).
+- **Bot-Status wirkte "global"/von "anderen Nutzern" beeinflussbar:** Das ist
+  kein Bug, sondern eine echte Discord-Grenze - die Presence (Online/DND/...)
+  gehört zur EINEN Gateway-Verbindung des Bots und ist für ALLE Server
+  gleichzeitig identisch; eine Pro-Server-Trennung bietet Discord dafür nicht
+  an. Dass `/bot-status` bisher für jeden Server-Administrator freigegeben
+  war, bedeutete de facto: der Administrator IRGENDEINES Servers, auf dem der
+  Bot ist, konnte den Status auf JEDEM ANDEREN Server ändern - genau das,
+  was als "andere Nutzer können das beeinflussen" auffiel. Fix: `/bot-status`
+  ist jetzt **ausschließlich** für den Bot-Betreiber (wie `/bstatnow`) - die
+  einzige Person, die ohnehin für den Bot auf allen Servern verantwortlich
+  ist. Eine echte Pro-Server-Trennung der Presence ist über die Discord-API
+  nicht möglich, unabhängig vom Code.
+
+## 5. Umgesetzte Punkte (Auftrag 1-17)
 
 ### 1) `/appearence` - Erscheinungsbild
 Referenzbild war **IMG_2347** (Bot-Profilkarte: Avatar, grüner Online-Punkt,
@@ -228,7 +271,7 @@ Servers strukturell nicht beeinflussen. Die globale Rangliste wird rein
 lesend aus genau diesen getrennten Server-Daten zusammengesetzt
 (`storage.getGlobalLeaderboard`), verändert dabei nie einen Server-Wert.
 
-## 5. Befehlsübersicht
+## 6. Befehlsübersicht
 
 | Kategorie | Befehle |
 |---|---|
@@ -242,7 +285,7 @@ lesend aus genau diesen getrennten Server-Daten zusammengesetzt
 | Nützliches/Spaß | `/userinfo` `/serverinfo` `/avatar` `/poll` `/remindme` `/suggest` `/coinflip` `/dice` `/8ball` `/membercount` `/roleinfo` |
 | Text-Befehl | `!support <Anliegen>`, `!support config` |
 
-## 6. Benötigte Dependencies
+## 7. Benötigte Dependencies
 
 ```json
 "discord.js": "^14.16.3",
@@ -250,12 +293,12 @@ lesend aus genau diesen getrennten Server-Daten zusammengesetzt
 ```
 Keine weiteren - keine Datenbank-Treiber, keine zusätzlichen Pakete.
 
-## 7. Benötigte `.env`-Variablen
+## 8. Benötigte `.env`-Variablen
 
 Siehe `.env.template` (Kopiervorlage). Pflicht ist nur `DISCORD_TOKEN`,
 alles andere hat einen sinnvollen Standardwert oder ist optional.
 
-## 8. Datenbank
+## 9. Datenbank
 
 Eine einzige `data.json` im Ordner (wird beim ersten Start automatisch
 angelegt, liegt in `.gitignore`). Enthält: `guilds` (pro-Server-
@@ -264,7 +307,7 @@ Command-Hash für den Auto-Sync, Presence-Konfiguration). Schreibt atomar
 und sichert die Datei bei Beschädigung automatisch (`data.json.corrupt-*`)
 statt Daten zu verlieren.
 
-## 9. Wie ich den Bot starte
+## 10. Wie ich den Bot starte
 
 ```bash
 npm install
@@ -279,7 +322,7 @@ npm install -g pm2
 pm2 start index.js --name tylxrrrr-bot --max-memory-restart 1536M
 ```
 
-## 10. Bekannte Einschränkungen (technisch begründet, siehe Details oben)
+## 11. Bekannte Einschränkungen (technisch begründet, siehe Details oben)
 
 - Bot-Presence ist Discord-weit identisch auf allen Servern (Punkt 10/11).
 - Ein "für immer" gültiger Server-Invite lässt sich nicht zusichern, nur
@@ -294,7 +337,7 @@ pm2 start index.js --name tylxrrrr-bot --max-memory-restart 1536M
   System bzw. `!support` automatisch deaktiviert, statt den Bot am Start zu
   hindern.
 
-## 11. Durchgeführte Prüfungen
+## 12. Durchgeführte Prüfungen
 
 - Jede `.js`-Datei mit `node --check` auf Syntaxfehler geprüft.
 - Die komplette Command-Registry (`commands.js`) offline gegen eine

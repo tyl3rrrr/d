@@ -5,10 +5,25 @@
 // Benötigt den privilegierten Intent "Server Members Intent" (Developer Portal).
 // Ohne ihn startet der Bot trotzdem (siehe index.js), das Welcome-System ist dann inaktiv.
 
-const { SlashCommandBuilder, EmbedBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ChannelType, PermissionFlagsBits, GatewayIntentBits } = require('discord.js');
 const storage = require('./storage');
 const { EPHEMERAL, errText, truncate } = require('./util');
 const logging = require('./logging');
+
+// Prüft, ob der GERADE LAUFENDE Bot-Prozess den privilegierten "Server Members
+// Intent" tatsächlich aktiv hat. Ist er im Discord Developer Portal nicht
+// eingeschaltet, startet der Bot automatisch OHNE ihn (siehe index.js,
+// INTENT_PLANS) - dann feuert Discord GuildMemberAdd nie, und das komplette
+// Welcome-System bleibt trotz korrekter Konfiguration wirkungslos. Das war
+// bisher nur in der Konsole sichtbar - jetzt wird es direkt in /welcome-setup
+// als deutliche Warnung angezeigt.
+function hasMembersIntent(client) {
+  try {
+    return client.options.intents.has(GatewayIntentBits.GuildMembers);
+  } catch (err) {
+    return true; // im Zweifel keine falsche Warnung anzeigen
+  }
+}
 
 const DEFAULT_PUBLIC = 'Welcome to the Server {user}! You are Member Number {number}';
 const DEFAULT_DM = 'Welcome to **{server}**, {username}! You are Member Number {number}';
@@ -113,6 +128,17 @@ const welcomeSetup = {
       .setFooter({ text: 'Platzhalter: {user} {username} {server} {number}' });
     if (notes.length) embed.addFields({ name: 'Hinweise', value: notes.join('\n') });
 
+    if (!hasMembersIntent(interaction.client)) {
+      embed.addFields({
+        name: '🚨 Welcome-System ist aktuell WIRKUNGSLOS',
+        value:
+          'Der privilegierte **„SERVER MEMBERS INTENT“** ist im Discord Developer Portal nicht aktiviert - ' +
+          'deshalb kommt aktuell KEINE Nachricht und wird KEINE Rolle vergeben, egal wie diese Einstellungen ' +
+          'aussehen. Beheben: https://discord.com/developers/applications -> deine App -> **Bot** -> ' +
+          '**Privileged Gateway Intents** -> **SERVER MEMBERS INTENT** einschalten, speichern, Bot neu starten.',
+      });
+    }
+
     await interaction.reply({ embeds: [embed], flags: EPHEMERAL });
   },
 };
@@ -120,7 +146,7 @@ const welcomeSetup = {
 // Wird von index.js bei GuildMemberAdd aufgerufen. Wirft nie.
 async function handleMemberAdd(member) {
   try {
-    if (member.user.bot) return;
+    // Auf ausdrücklichen Wunsch werden auch Bots begrüßt (kein Ausschluss mehr).
     const cfg = getWelcome(member.guild.id);
     if (!cfg.roleId && !cfg.channelId && !cfg.dmEnabled) return;
 

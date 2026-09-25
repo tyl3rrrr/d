@@ -85,6 +85,10 @@ function explainError(err) {
   if (err.status === 403 || err.code === 50013 || err.code === 50001) {
     return 'Mir fehlt die Berechtigung **„Server verwalten“** (Manage Server). Bitte gib dem Bot diese Berechtigung, damit er AutoMod-Regeln verwalten kann.';
   }
+  const discordCode = err.rawError && err.rawError.code;
+  if (discordCode === 'AUTO_MODERATION_MAX_RULES_OF_TYPE_EXCEEDED' || /MAX_RULES_OF_TYPE_EXCEEDED/i.test(err.message || '')) {
+    return 'Für diesen Regeltyp sind auf diesem Server bereits die maximal möglichen AutoMod-Regeln vorhanden (Discord-Limit) - auch durch bereits vorhandene, nicht vom Bot erstellte Regeln. Lösche in den Servereinstellungen unter „AutoMod“ eine überflüssige Regel dieses Typs, dann klappt `/automod setup` erneut.';
+  }
   const raw = err.rawError && err.rawError.message ? ` (${err.rawError.message})` : '';
   return `${errText(err)}${raw}`;
 }
@@ -148,14 +152,35 @@ async function listAllRules(client, guildId) {
   return Array.isArray(rules) ? rules : [];
 }
 
-// Nur die vom Bot erstellten Regeln (creator_id = Bot-ID).
+// Nur die vom Bot erstellten Regeln (creator_id = Bot-ID) - wird für die
+// Badge-Zählung gebraucht (Discord zählt dort nur selbst erstellte Regeln).
 async function listBotRules(client, guildId) {
   const rules = await listAllRules(client, guildId);
   return rules.filter((r) => r.creator_id === client.user.id);
 }
 
+// Discord erlaubt pro Server nur eine begrenzte Anzahl Regeln JE TRIGGER-TYP
+// (z.B. maximal 6 Keyword-Regeln, aber nur 1 Spam-Regel usw. - siehe
+// MAX_RULES_PER_GUILD-Kommentar oben). Ist dieses Limit für einen Typ schon
+// durch IRGENDEINE bestehende Regel ausgeschöpft (egal von wem erstellt),
+// schlägt das Anlegen einer weiteren Regel mit "Invalid Form Body" fehl -
+// genau das war der gemeldete Fehler. Deshalb wird hier IMMER zuerst unter
+// ALLEN vorhandenen Regeln gesucht (nicht nur den bot-eigenen), bevor eine
+// neue Regel angelegt wird.
+const KIND_TRIGGER = { words: TRIGGER.KEYWORD, spam: TRIGGER.SPAM, mention: TRIGGER.MENTION_SPAM, preset: TRIGGER.KEYWORD_PRESET, profile: TRIGGER.MEMBER_PROFILE };
+
 function findRuleByKind(botRules, kind) {
   return botRules.find((r) => r.name === RULE_NAMES[kind]) || null;
+}
+
+// Sucht unter ALLEN Regeln des Servers (jeder Ersteller) eine passende:
+// bevorzugt exakt unsere eigene (Name + vom Bot erstellt), sonst irgendeine
+// mit demselben Trigger-Typ (die dann übernommen/umbenannt wird).
+function findAnyRuleForKind(allRules, kind) {
+  const own = allRules.find((r) => r.name === RULE_NAMES[kind]);
+  if (own) return { rule: own, isOwn: true };
+  const sameType = allRules.find((r) => r.trigger_type === KIND_TRIGGER[kind]);
+  return sameType ? { rule: sameType, isOwn: false } : null;
 }
 
 // Startwörter für einen Server: alte lokale Liste (Migration) oder Standardliste.
@@ -171,11 +196,26 @@ async function createRule(client, guildId, kind, words) {
   });
 }
 
-// Liefert die Wortfilter-Regel des Bots (legt sie an, falls sie fehlt).
+// Benennt eine fremde/bereits vorhandene Regel auf unseren Namen um, OHNE ihre
+// bestehenden Trigger-Daten (z.B. eine bereits gepflegte Wortliste) zu verändern.
+async function adoptRule(client, guildId, rule, kind) {
+  try {
+    return await client.rest.patch(Routes.guildAutoModerationRule(guildId, rule.id), {
+      body: { name: RULE_NAMES[kind] },
+      reason: 'tylxrrrr Bot: bestehende Regel übernommen',
+    });
+  } catch (err) {
+    // Umbenennen fehlgeschlagen (z.B. fremde/nicht änderbare Regel) - Regel trotzdem weiter verwenden.
+    return rule;
+  }
+}
+
+// Liefert die Wortfilter-Regel des Bots (übernimmt eine vorhandene Keyword-Regel
+// JEDES Erstellers, statt bei vollem Limit erfolglos eine neue anzulegen).
 async function ensureWordRule(client, guildId) {
-  const botRules = await listBotRules(client, guildId);
-  const existing = findRuleByKind(botRules, 'words');
-  if (existing) return existing;
+  const allRules = await listAllRules(client, guildId);
+  const found = findAnyRuleForKind(allRules, 'words');
+  if (found) return found.isOwn ? found.rule : adoptRule(client, guildId, found.rule, 'words');
 
   const rule = await createRule(client, guildId, 'words', seedWords(guildId));
   // Migration abgeschlossen: die alte lokale Liste wird nicht mehr gebraucht.
@@ -203,28 +243,42 @@ async function setWords(client, guildId, rule, words) {
   });
 }
 
-// Legt alle Standardregeln an, die noch fehlen. Idempotent.
+// Legt alle Standardregeln an, die noch fehlen - übernimmt dabei bestehende
+// Regeln JEDES Erstellers, statt bei vollem Server-Limit für einen Trigger-Typ
+// erfolglos eine weitere Regel anzulegen (siehe findAnyRuleForKind oben).
 async function createStandardRules(client, guildId) {
   const results = [];
-  let botRules;
+  let allRules;
   try {
-    botRules = await listBotRules(client, guildId);
+    allRules = await listAllRules(client, guildId);
   } catch (err) {
     return [{ kind: 'all', status: 'error', error: explainError(err) }];
   }
 
-  const words = (() => {
-    const wordRule = findRuleByKind(botRules, 'words');
-    return wordRule ? getWordsFromRule(wordRule) : seedWords(guildId);
+  const wordsSeed = (() => {
+    const found = findAnyRuleForKind(allRules, 'words');
+    return found ? getWordsFromRule(found.rule) : seedWords(guildId);
   })();
 
   for (const kind of RULE_ORDER) {
-    if (findRuleByKind(botRules, kind)) {
-      results.push({ kind, status: 'exists' });
+    const found = findAnyRuleForKind(allRules, kind);
+    if (found) {
+      if (found.isOwn) {
+        results.push({ kind, status: 'exists' });
+      } else {
+        try {
+          const adopted = await adoptRule(client, guildId, found.rule, kind);
+          allRules = allRules.map((r) => (r.id === found.rule.id ? adopted : r));
+          results.push({ kind, status: 'adopted' });
+        } catch (err) {
+          results.push({ kind, status: 'error', error: explainError(err) });
+        }
+      }
       continue;
     }
     try {
-      await createRule(client, guildId, kind, words);
+      const created = await createRule(client, guildId, kind, kind === 'words' ? wordsSeed : undefined);
+      allRules.push(created);
       if (kind === 'words') storage.removeGuildSetting(guildId, 'bannedWords');
       results.push({ kind, status: 'created' });
     } catch (err) {
@@ -349,8 +403,10 @@ module.exports = {
   normalizeWord,
   explainError,
   buildRuleBody,
+  listAllRules,
   listBotRules,
   findRuleByKind,
+  findAnyRuleForKind,
   ensureWordRule,
   getWordsFromRule,
   setWords,

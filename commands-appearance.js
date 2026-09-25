@@ -170,13 +170,17 @@ async function setColor(interaction) {
     await client.rest.put(Routes.guildMemberRole(guild.id, client.user.id, roleId), { reason: 'Bot-Farbe' });
   };
 
+  // WICHTIG: Das `colors`-Feld (Verlauf/holografisch) darf nur gesendet werden,
+  // wenn tatsächlich ein Verlauf gewünscht ist - Discord lehnt es sonst IMMER mit
+  // "Missing guild feature" ab, selbst für eine einzelne, normale Farbe. Eine
+  // einfache Farbe (nur `primary`, kein `secondary`/`holographic`) muss über das
+  // klassische `color`-Feld gesetzt werden.
   let fellBack = false;
   try {
-    await apply(true);
+    await apply(wantsEnhanced);
   } catch (err) {
-    if (!wantsEnhanced) throw err;
+    if (!wantsEnhanced || holo) throw err;
     // Server unterstützt keinen Verlauf -> solide Hauptfarbe als Fallback
-    if (holo) throw err;
     await apply(false);
     fellBack = true;
   }

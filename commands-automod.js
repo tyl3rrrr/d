@@ -7,7 +7,7 @@ const automod = require('./automod-api');
 const permissions = require('./permissions');
 const { EPHEMERAL } = require('./util');
 
-const STATUS_ICON = { created: '🆕', exists: '✅', error: '❌' };
+const STATUS_ICON = { created: '🆕', adopted: '♻️', exists: '✅', error: '❌' };
 
 const automodCmd = {
   data: new SlashCommandBuilder()
@@ -35,7 +35,14 @@ const automodCmd = {
       const results = await automod.createStandardRules(client, guildId);
       const lines = results.map((r) => {
         const label = r.kind === 'all' ? 'AutoMod' : automod.RULE_LABELS[r.kind];
-        const detail = r.status === 'error' ? ` — ${r.error}` : r.status === 'created' ? ' — neu angelegt' : ' — war schon vorhanden';
+        const detail =
+          r.status === 'error'
+            ? ` — ${r.error}`
+            : r.status === 'created'
+              ? ' — neu angelegt'
+              : r.status === 'adopted'
+                ? ' — bereits vorhandene Regel übernommen (umbenannt, Einstellungen erhalten)'
+                : ' — war schon vorhanden';
         return `${STATUS_ICON[r.status]} ${label}${detail}`;
       });
       const embed = new EmbedBuilder()
@@ -48,19 +55,22 @@ const automodCmd = {
     }
 
     if (sub === 'status') {
-      let rules;
+      let allRules;
       try {
-        rules = await automod.listBotRules(client, guildId);
+        allRules = await automod.listAllRules(client, guildId);
       } catch (err) {
         await interaction.editReply(`❌ AutoMod-Regeln konnten nicht geladen werden: ${automod.explainError(err)}`);
         return;
       }
 
       const lines = automod.RULE_ORDER.map((kind) => {
-        const rule = automod.findRuleByKind(rules, kind);
-        return `${rule ? (rule.enabled ? '✅' : '⏸️') : '❌'} ${automod.RULE_LABELS[kind]}${rule ? (rule.enabled ? '' : ' (deaktiviert)') : ' — nicht angelegt'}`;
+        const found = automod.findAnyRuleForKind(allRules, kind);
+        const rule = found ? found.rule : null;
+        const ownNote = rule && !found.isOwn ? ' (übernommene Regel)' : '';
+        return `${rule ? (rule.enabled ? '✅' : '⏸️') : '❌'} ${automod.RULE_LABELS[kind]}${rule ? `${rule.enabled ? '' : ' (deaktiviert)'}${ownNote}` : ' — nicht angelegt'}`;
       });
 
+      const rules = allRules.filter((r) => r.creator_id === client.user.id);
       const embed = new EmbedBuilder()
         .setTitle('🛡️ AutoMod-Status')
         .setColor(0x5865f2)

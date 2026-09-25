@@ -1,12 +1,24 @@
 // commands-presence.js
-// /status    - berechtigte User (Administrator) stellen den Bot-Status ein
-// /bstatnow  - AUSSCHLIESSLICH der Superuser konfiguriert die Presence im Detail
+// /bot-status - AUSSCHLIESSLICH der Bot-Betreiber (siehe Begründung unten)
+// /bstatnow   - AUSSCHLIESSLICH die hartkodierte Superuser-ID, detaillierte Konfiguration
 //
 // Hinweis zum Namen: Discord verlangt für Slash-Commands einen KOMPLETT
 // kleingeschriebenen Namen. "bStatNow" (Großbuchstaben) wird von Discord.js beim
 // Erstellen abgelehnt (ExpectedConstraintError) und lässt den ganzen Bot-Prozess
 // abstürzen - deshalb heißt der Befehl hier bewusst "bstatnow".
-// Zugriff wird zentral in permissions.js geprüft (access: 'admin' bzw. 'superuser').
+//
+// WARUM /bot-status NICHT an normale Server-Administratoren delegiert wird:
+// Die Discord-Presence (Online/Idle/DND/Streaming) gehört zur EINEN
+// Gateway-Verbindung des Bots und ist damit ZWANGSLÄUFIG für ALLE Server
+// gleichzeitig identisch - Discord bietet dafür KEINE Pro-Server-Trennung an.
+// Wäre dieser Befehl für jeden Server-Administrator freigegeben, könnte der
+// Administrator IRGENDEINES Servers, auf dem der Bot Mitglied ist, den Status
+// auf JEDEM ANDEREN Server verändern - das sieht von außen wie "andere Nutzer
+// können diesen Server beeinflussen" aus und ist genau das nicht gewollt.
+// Deshalb ist der Befehl auf den Bot-Betreiber beschränkt (siehe config.js,
+// OWNER_ID/Superuser) - das ist die einzige Person, die ohnehin für alle
+// Server, auf denen der Bot läuft, verantwortlich ist.
+// Zugriff wird zentral in permissions.js geprüft (access: 'bot-owner' bzw. 'superuser').
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const presence = require('./presence');
@@ -20,7 +32,7 @@ const { EPHEMERAL } = require('./util');
 const botStatus = {
   data: new SlashCommandBuilder()
     .setName('bot-status')
-    .setDescription('Stellt den Bot-Online-Status ein (gilt bot-weit, siehe Hinweis in der Antwort)')
+    .setDescription('Bot-Betreiber: stellt den Bot-Online-Status ein (gilt technisch bedingt bot-weit, nicht pro Server)')
     .addStringOption((o) =>
       o
         .setName('wert')

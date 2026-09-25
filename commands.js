@@ -40,7 +40,7 @@ const registry = [
   [help, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [core.reload, { category: 'bot', access: 'bot-owner', scope: 'anywhere' }],
   [admReload, { category: 'bot', access: 'admin', scope: 'guild' }],
-  [botStatus, { category: 'bot', access: 'admin', scope: 'guild' }],
+  [botStatus, { category: 'bot', access: 'bot-owner', scope: 'guild' }],
   [bstatnow, { category: 'bot', access: 'superuser', scope: 'anywhere' }],
 
   // Moderation (Moderator-Rolle, Administrator-Rolle oder Server-Owner)
