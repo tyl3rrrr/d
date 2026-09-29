@@ -1,8 +1,8 @@
 // commands-automod-words.js
-// Verwaltet die Wortliste des Wortfilters - über die Discord-AutoMod-API.
-// Die Wörter stehen in der AutoMod-Regel "tylxrrrr | Wortfilter" (sichtbar unter
-// Servereinstellungen -> AutoMod). Es gibt keinen lokalen Filter mehr.
-// Zugriff (Administratoren) wird zentral in permissions.js geprüft.
+// Manages the word filter's word list via the Discord AutoMod API. Words live
+// in the AutoMod rule "tylxrrrr | Word Filter" (visible under Server Settings
+// -> AutoMod). There is no local filter anymore.
+// Access (administrators) is checked centrally in permissions.js.
 
 const { SlashCommandBuilder } = require('discord.js');
 const automod = require('./automod-api');
@@ -11,22 +11,20 @@ const { EPHEMERAL, truncate } = require('./util');
 const automodWords = {
   data: new SlashCommandBuilder()
     .setName('automod-words')
-    .setDescription('Verwaltet die Wortliste des AutoMod-Wortfilters (Discord-AutoMod)')
+    .setDescription("Manages the AutoMod word filter's block list (Discord AutoMod)")
     .addSubcommand((sub) =>
       sub
         .setName('add')
-        .setDescription('Fügt ein Wort zur Blockliste hinzu')
-        .addStringOption((opt) =>
-          opt.setName('wort').setDescription('Das zu blockierende Wort (Platzhalter: *wort*)').setRequired(true).setMaxLength(60)
-        )
+        .setDescription('Adds a word to the block list')
+        .addStringOption((opt) => opt.setName('word').setDescription('The word to block').setRequired(true).setMaxLength(60))
     )
     .addSubcommand((sub) =>
       sub
         .setName('remove')
-        .setDescription('Entfernt ein Wort von der Blockliste')
-        .addStringOption((opt) => opt.setName('wort').setDescription('Das zu entfernende Wort').setRequired(true).setMaxLength(60))
+        .setDescription('Removes a word from the block list')
+        .addStringOption((opt) => opt.setName('word').setDescription('The word to remove').setRequired(true).setMaxLength(60))
     )
-    .addSubcommand((sub) => sub.setName('list').setDescription('Zeigt die aktuelle Blockliste')),
+    .addSubcommand((sub) => sub.setName('list').setDescription('Shows the current block list')),
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
@@ -39,22 +37,18 @@ const automodWords = {
     try {
       rule = await automod.ensureWordRule(client, guildId);
     } catch (err) {
-      await interaction.editReply(`❌ AutoMod-Regel konnte nicht geladen/erstellt werden: ${automod.explainError(err)}`);
+      await interaction.editReply(`❌ Could not load/create the AutoMod rule: ${automod.explainError(err)}`);
       return;
     }
     const words = automod.getWordsFromRule(rule);
 
     if (sub === 'list') {
       const text = words.length > 0 ? words.join(', ') : '';
-      await interaction.editReply(
-        words.length > 0
-          ? `🚫 Blockierte Wörter (${words.length}):\n${truncate(text, 1800)}`
-          : 'Die Blockliste ist leer.'
-      );
+      await interaction.editReply(words.length > 0 ? `🚫 Blocked words (${words.length}):\n${truncate(text, 1800)}` : 'The block list is empty.');
       return;
     }
 
-    const input = automod.normalizeWord(interaction.options.getString('wort'));
+    const input = automod.normalizeWord(interaction.options.getString('word'));
     if (!input.ok) {
       await interaction.editReply(`❌ ${input.error}`);
       return;
@@ -64,26 +58,26 @@ const automodWords = {
     try {
       if (sub === 'add') {
         if (words.some((w) => w.toLowerCase() === word.toLowerCase())) {
-          await interaction.editReply(`"${word}" ist bereits in der Liste.`);
+          await interaction.editReply(`"${word}" is already on the list.`);
           return;
         }
         await automod.setWords(client, guildId, rule, [...words, word]);
-        await interaction.editReply(`✅ "${word}" wurde zur Blockliste hinzugefügt (Discord-AutoMod-Regel aktualisiert).`);
+        await interaction.editReply(`✅ "${word}" was added to the block list (Discord AutoMod rule updated).`);
         return;
       }
 
       if (sub === 'remove') {
         const updated = words.filter((w) => w.toLowerCase() !== word.toLowerCase());
         if (updated.length === words.length) {
-          await interaction.editReply(`"${word}" war nicht in der Liste.`);
+          await interaction.editReply(`"${word}" was not on the list.`);
           return;
         }
         await automod.setWords(client, guildId, rule, updated);
-        await interaction.editReply(`✅ "${word}" wurde von der Blockliste entfernt (Discord-AutoMod-Regel aktualisiert).`);
+        await interaction.editReply(`✅ "${word}" was removed from the block list (Discord AutoMod rule updated).`);
       }
     } catch (err) {
-      console.error('Fehler bei /automod-words:', err);
-      await interaction.editReply(`❌ Discord hat die Änderung abgelehnt: ${automod.explainError(err)}`);
+      console.error('Error in /automod-words:', err);
+      await interaction.editReply(`❌ Discord rejected the change: ${automod.explainError(err)}`);
     }
   },
 };

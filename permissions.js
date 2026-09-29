@@ -1,27 +1,27 @@
 // permissions.js
 //
-// ZENTRALES Berechtigungssystem. Kein Command prüft mehr selbst - jeder Command
-// deklariert nur, WER ihn nutzen darf (Eigenschaft `access`, siehe commands.js),
-// und index.js ruft VOR jeder Ausführung guardInteraction() auf.
+// CENTRAL permission system. No command checks permissions itself anymore -
+// each command only declares WHO may use it (the `access` property, see
+// commands.js), and index.js calls guardInteraction() before every execution.
 //
-// Rangstufen auf einem Server (aufsteigend):
-//   Moderator-Rolle  <  Administrator-Rolle / Discord-Administrator  <  Server-Owner
+// Rank levels on a server (ascending):
+//   Mod role  <  Admin role / Discord Administrator  <  Server owner
 //
-// Wer zählt als was?
-// - Server-Owner:    guild.ownerId === user.id
-// - Admin:           Mitglied mit der per `/settings admin-role` gesetzten Rolle
-//                    ODER mit der Discord-Berechtigung "Administrator"
-//                    (sonst könnte ein frisch eingeladener Bot nie eingerichtet
-//                    werden, solange noch keine Admin-Rolle festgelegt ist)
-// - Moderator:       Mitglied mit der per `/settings mod-role` gesetzten Rolle
+// Who counts as what?
+// - Server owner: guild.ownerId === user.id
+// - Admin:        member with the role set via `/settings admin-role`
+//                 OR with the Discord "Administrator" permission
+//                 (otherwise a freshly invited bot could never be set up
+//                 as long as no admin role has been configured yet)
+// - Moderator:    member with the role set via `/settings mod-role`
 //
-// Mögliche `access`-Werte eines Commands:
-//   'everyone'  - jeder (auch per User-Install / in DMs)
-//   'mod'       - Moderator, Admin oder Server-Owner (nur Server)
-//   'admin'     - Admin oder Server-Owner (nur Server)
-//   'bot-owner' - Bot-Betreiber (OWNER_ID aus .env oder Superuser)
-//   'superuser' - ausschließlich die Superuser-ID aus config.js
-// Alternativ ein Objekt für Subcommands: { default: 'everyone', sub: { nickname: 'admin' } }
+// Possible `access` values for a command:
+//   'everyone'  - anyone (including via user install / in DMs)
+//   'mod'       - moderator, admin, or server owner (guild only)
+//   'admin'     - admin or server owner (guild only)
+//   'bot-owner' - the bot operator (OWNER_ID from .env, or superuser)
+//   'superuser' - exclusively the superuser ID from config.js
+// Or an object for per-subcommand access: { default: 'everyone', sub: { nickname: 'admin' } }
 
 const { PermissionFlagsBits } = require('discord.js');
 const storage = require('./storage');
@@ -29,11 +29,11 @@ const config = require('./config');
 const { EPHEMERAL } = require('./util');
 
 const LEVEL = { NONE: 0, MOD: 1, ADMIN: 2, OWNER: 3 };
-const LEVEL_NAMES = { 0: 'Mitglied', 1: 'Moderator', 2: 'Administrator', 3: 'Server-Owner' };
+const LEVEL_NAMES = { 0: 'Member', 1: 'Moderator', 2: 'Administrator', 3: 'Server Owner' };
 
 function roleIdsOf(member) {
   if (!member || !member.roles) return [];
-  if (Array.isArray(member.roles)) return member.roles; // rohes API-Member-Objekt (Guild nicht im Cache)
+  if (Array.isArray(member.roles)) return member.roles; // raw API member object (guild not cached)
   if (member.roles.cache) return [...member.roles.cache.keys()];
   return [];
 }
@@ -47,7 +47,7 @@ function computeLevel({ ownerId, guildId, userId, roleIds, hasAdminPermission })
   return LEVEL.NONE;
 }
 
-// Rang eines GuildMember (z.B. das Ziel einer Moderationsaktion).
+// Rank of a GuildMember (e.g. the target of a moderation action).
 function getMemberLevel(guild, member) {
   if (!guild || !member) return LEVEL.NONE;
   return computeLevel({
@@ -59,7 +59,7 @@ function getMemberLevel(guild, member) {
   });
 }
 
-// Rang des Nutzers, der die Interaktion ausgelöst hat.
+// Rank of the user who triggered the interaction.
 function getInteractionLevel(interaction) {
   if (!interaction.inGuild() || !interaction.guildId) return LEVEL.NONE;
   return computeLevel({
@@ -79,7 +79,7 @@ function isSuperuser(userId) {
   return userId === config.SUPERUSER_ID;
 }
 
-// Liefert den für DIESEN Aufruf gültigen access-Wert (berücksichtigt Subcommands).
+// Returns the access value that applies to THIS call (accounts for subcommands).
 function resolveAccess(command, interaction) {
   const access = command.access || 'everyone';
   if (typeof access === 'string') return access;
@@ -96,23 +96,20 @@ function denyText(access) {
   switch (access) {
     case 'mod':
       return (
-        '❌ Dafür fehlt dir die Berechtigung. Erlaubt sind: **Server-Owner**, die **Administrator-Rolle** oder die ' +
-        '**Moderator-Rolle** dieses Servers (festlegbar mit `/settings admin-role` und `/settings mod-role`).'
+        "❌ You don't have permission for that. Allowed: **Server Owner**, the **Administrator role**, or the " +
+        '**Moderator role** of this server (set with `/settings admin-role` and `/settings mod-role`).'
       );
     case 'admin':
-      return (
-        '❌ Dafür fehlt dir die Berechtigung. Erlaubt sind: **Server-Owner** oder die **Administrator-Rolle** ' +
-        'dieses Servers (festlegbar mit `/settings admin-role`).'
-      );
+      return "❌ You don't have permission for that. Allowed: **Server Owner** or the **Administrator role** of this server (set with `/settings admin-role`).";
     case 'bot-owner':
     case 'superuser':
-      return '❌ Dieser Befehl ist nur für den Bot-Betreiber.';
+      return '❌ This command is only for the bot operator.';
     default:
-      return '❌ Dafür fehlt dir die Berechtigung.';
+      return "❌ You don't have permission for that.";
   }
 }
 
-// Prüft, ob der Nutzer die geforderte Zugriffsstufe hat.
+// Checks whether the user has the required access level.
 function hasAccess(interaction, access) {
   switch (access) {
     case 'everyone':
@@ -126,18 +123,18 @@ function hasAccess(interaction, access) {
     case 'admin':
       return getInteractionLevel(interaction) >= LEVEL.ADMIN;
     default:
-      // Unbekannter Wert -> aus Sicherheitsgründen verweigern.
+      // Unknown value -> deny for safety.
       return false;
   }
 }
 
-// Wird von index.js vor JEDER Command-Ausführung aufgerufen.
-// Gibt true zurück, wenn der Command ausgeführt werden darf; sonst wurde bereits
-// eine Ephemeral-Fehlermeldung gesendet.
+// Called by index.js before EVERY command execution.
+// Returns true if the command may run; otherwise an ephemeral error message
+// has already been sent.
 async function guardInteraction(interaction, command) {
   if (command.scope === 'guild' && (!interaction.inGuild() || !interaction.guild)) {
     await interaction.reply({
-      content: '❌ Dieser Befehl funktioniert nur auf Servern, auf denen der Bot als Mitglied eingeladen ist.',
+      content: '❌ This command only works on servers the bot is a member of.',
       flags: EPHEMERAL,
     });
     return false;
@@ -151,22 +148,22 @@ async function guardInteraction(interaction, command) {
 }
 
 // ---------------------------------------------------------------------------
-// Schutz vor Rechte-Eskalation: Ein Moderator darf nur Mitglieder moderieren,
-// die im Rang UNTER ihm stehen - sonst könnte er über den Bot (der oft höhere
-// Rechte hat) Admins kicken/bannen. Der Server-Owner ist niemals ein Ziel.
+// Escalation guard: a moderator may only moderate members ranked BELOW them -
+// otherwise they could use the bot (which often has higher permissions) to
+// kick/ban admins. The server owner is never a valid target.
 // ---------------------------------------------------------------------------
 function canModerate(interaction, targetMember) {
-  if (!targetMember) return { ok: true }; // Ziel nicht (mehr) auf dem Server - nichts zu prüfen
+  if (!targetMember) return { ok: true }; // target no longer on the server - nothing to check
   const guild = interaction.guild;
 
   if (targetMember.id === interaction.client.user.id) {
-    return { ok: false, reason: '❌ Ich kann mich nicht selbst moderieren.' };
+    return { ok: false, reason: "❌ I can't moderate myself." };
   }
   if (targetMember.id === interaction.user.id) {
-    return { ok: false, reason: '❌ Du kannst diese Aktion nicht gegen dich selbst ausführen.' };
+    return { ok: false, reason: "❌ You can't do that to yourself." };
   }
   if (guild && guild.ownerId === targetMember.id) {
-    return { ok: false, reason: '❌ Der Server-Owner kann nicht moderiert werden.' };
+    return { ok: false, reason: "❌ The server owner can't be moderated." };
   }
 
   const actorLevel = getInteractionLevel(interaction);
@@ -176,34 +173,34 @@ function canModerate(interaction, targetMember) {
   if (targetLevel >= actorLevel) {
     return {
       ok: false,
-      reason: `❌ Du kannst kein Mitglied moderieren, das im Rang gleich oder über dir steht (${LEVEL_NAMES[targetLevel]}).`,
+      reason: `❌ You can't moderate a member ranked equal to or above you (${LEVEL_NAMES[targetLevel]}).`,
     };
   }
   return { ok: true };
 }
 
-// Darf der Nutzer diese Rolle vergeben/entfernen? (für /role)
+// May the user grant/remove this role? (for /role)
 function canManageRole(interaction, role) {
   const guild = interaction.guild;
-  if (!role || !guild) return { ok: false, reason: '❌ Rolle nicht gefunden.' };
-  if (role.id === guild.id) return { ok: false, reason: '❌ @everyone kann nicht vergeben werden.' };
-  if (role.managed) return { ok: false, reason: '❌ Diese Rolle wird von einer Integration verwaltet und kann nicht vergeben werden.' };
+  if (!role || !guild) return { ok: false, reason: '❌ Role not found.' };
+  if (role.id === guild.id) return { ok: false, reason: "❌ @everyone can't be granted." };
+  if (role.managed) return { ok: false, reason: "❌ This role is managed by an integration and can't be granted." };
 
   const actorLevel = getInteractionLevel(interaction);
   if (actorLevel >= LEVEL.OWNER) return { ok: true };
 
   const settings = storage.getGuildSettings(guild.id);
   if (role.permissions.has(PermissionFlagsBits.Administrator)) {
-    return { ok: false, reason: '❌ Rollen mit Administrator-Rechten darf nur der Server-Owner vergeben.' };
+    return { ok: false, reason: '❌ Only the server owner can grant roles with Administrator permissions.' };
   }
   if ((role.id === settings.adminRoleId || role.id === settings.modRoleId) && actorLevel < LEVEL.ADMIN) {
-    return { ok: false, reason: '❌ Die Administrator-/Moderator-Rolle dürfen nur Administratoren vergeben.' };
+    return { ok: false, reason: '❌ Only administrators can grant the admin/mod role.' };
   }
 
   const member = interaction.member;
   const highest = member && member.roles && member.roles.highest;
   if (highest && role.comparePositionTo(highest) >= 0) {
-    return { ok: false, reason: '❌ Du kannst nur Rollen vergeben, die unter deiner höchsten Rolle stehen.' };
+    return { ok: false, reason: '❌ You can only grant roles below your highest role.' };
   }
   return { ok: true };
 }

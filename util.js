@@ -1,10 +1,10 @@
 // util.js
-// Kleine gemeinsame Helfer (flach, keine Abhängigkeiten außer discord.js).
+// Small shared helpers (flat, no dependencies besides discord.js).
 
 const { MessageFlags } = require('discord.js');
 
-// Ersetzt das veraltete `ephemeral: true` (wird in neueren discord.js-Versionen
-// als deprecated gewarnt). Verwendung: interaction.reply({ content, flags: EPHEMERAL })
+// Replaces the deprecated `ephemeral: true` (newer discord.js versions warn
+// about it). Usage: interaction.reply({ content, flags: EPHEMERAL })
 const EPHEMERAL = MessageFlags.Ephemeral;
 
 function isMissingPermError(err) {
@@ -15,14 +15,14 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Kürzt Text auf eine Maximallänge (mit "…").
+// Truncates text to a maximum length (with "…").
 function truncate(text, max) {
   const s = String(text ?? '');
   return s.length <= max ? s : `${s.slice(0, Math.max(0, max - 1))}…`;
 }
 
-// Teilt Zeilen so in Blöcke auf, dass jeder Block <= maxLen Zeichen hat
-// (für Embed-Felder, die max. 1024 Zeichen erlauben).
+// Splits lines into blocks so each block is <= maxLen characters (for embed
+// fields, which allow at most 1024 characters).
 function splitLines(lines, maxLen = 1000) {
   const blocks = [];
   let current = '';
@@ -39,9 +39,9 @@ function splitLines(lines, maxLen = 1000) {
   return blocks;
 }
 
-// Kurzer, für Nutzer lesbarer Fehlertext (ohne interne Details/Stacktraces).
+// Short, user-readable error text (no internal details/stack traces).
 function errText(err) {
-  if (!err) return 'Unbekannter Fehler';
+  if (!err) return 'Unknown error';
   return truncate(err.message || String(err), 300);
 }
 

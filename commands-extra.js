@@ -2,47 +2,48 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const { canManageRole, canModerate } = require('./permissions');
 const { EPHEMERAL, isMissingPermError } = require('./util');
+const logging = require('./logging');
 
-// Zugriffsrechte (mod / everyone) werden zentral in permissions.js geprüft
-// (siehe Registry in commands.js) - keine eigenen Berechtigungs-Checks mehr hier.
+// Access rights (mod / everyone) are checked centrally in permissions.js
+// (see the registry in commands.js) - no own permission checks here anymore.
 
 const ping = {
-  data: new SlashCommandBuilder().setName('ping').setDescription('Zeigt die aktuelle Verbindungs-Latenz'),
+  data: new SlashCommandBuilder().setName('ping').setDescription('Shows the current connection latency'),
   async execute(interaction) {
     const sent = Date.now();
-    await interaction.reply('🏓 Pinge...');
+    await interaction.reply('🏓 Pinging...');
     const roundtrip = Date.now() - sent;
     const wsPing = Math.round(interaction.client.ws.ping);
-    await interaction.editReply(`🏓 Pong! Bot-Antwortzeit: ${roundtrip} ms | WebSocket: ${wsPing} ms`);
+    await interaction.editReply(`🏓 Pong! Bot response time: ${roundtrip} ms | WebSocket: ${wsPing} ms`);
   },
 };
 
 const remindme = {
   data: new SlashCommandBuilder()
     .setName('remindme')
-    .setDescription('Erinnert dich per Nachricht nach einer bestimmten Zeit')
+    .setDescription('Reminds you by message after a set time')
     .addIntegerOption((opt) =>
-      opt.setName('minuten').setDescription('In wie vielen Minuten?').setMinValue(1).setMaxValue(1440).setRequired(true)
+      opt.setName('minutes').setDescription('In how many minutes?').setMinValue(1).setMaxValue(1440).setRequired(true)
     )
-    .addStringOption((opt) => opt.setName('text').setDescription('Woran soll erinnert werden?').setRequired(true)),
+    .addStringOption((opt) => opt.setName('text').setDescription('What should you be reminded of?').setRequired(true)),
 
   async execute(interaction) {
-    const minutes = interaction.options.getInteger('minuten');
+    const minutes = interaction.options.getInteger('minutes');
     const text = interaction.options.getString('text');
 
     await interaction.reply({
-      content: `⏰ Ok, ich erinnere dich in ${minutes} Minute(n) an: "${text}"`,
+      content: `⏰ Okay, I'll remind you in ${minutes} minute(s): "${text}"`,
       flags: EPHEMERAL,
     });
 
-    // Hinweis: Läuft nur im Arbeitsspeicher - geht bei einem Neustart des
-    // Bots verloren. Für wichtige/lange Erinnerungen ggf. selbst notieren.
+    // Note: this only lives in memory - it is lost when the bot restarts. For
+    // important/long reminders, make a note yourself as well.
     //
-    // Der Interaktions-Token (followUp) ist nur 15 Minuten gültig, Erinnerungen
-    // dauern bis zu 24 Stunden - deshalb wird primär per DM zugestellt und nur
-    // als Fallback (DMs deaktiviert) per followUp.
+    // The interaction token (followUp) is only valid for 15 minutes, while
+    // reminders can be up to 24 hours - so delivery is primarily via DM, with
+    // followUp only as a fallback (if DMs are disabled).
     setTimeout(async () => {
-      const reminder = `⏰ Erinnerung: ${text}`;
+      const reminder = `⏰ Reminder: ${text}`;
       try {
         await interaction.user.send(reminder);
       } catch (err) {
@@ -55,16 +56,16 @@ const remindme = {
 const suggest = {
   data: new SlashCommandBuilder()
     .setName('suggest')
-    .setDescription('Postet einen Vorschlag in diesem Kanal (mit Abstimmungs-Reaktionen)')
-    .addStringOption((opt) => opt.setName('vorschlag').setDescription('Dein Vorschlag').setRequired(true)),
+    .setDescription('Posts a suggestion in this channel (with voting reactions)')
+    .addStringOption((opt) => opt.setName('suggestion').setDescription('Your suggestion').setRequired(true)),
 
   async execute(interaction) {
-    const text = interaction.options.getString('vorschlag');
+    const text = interaction.options.getString('suggestion');
     const embed = new EmbedBuilder()
-      .setTitle('💡 Neuer Vorschlag')
+      .setTitle('💡 New Suggestion')
       .setDescription(text)
       .setColor(0x5865f2)
-      .setFooter({ text: `Vorgeschlagen von ${interaction.user.tag}` })
+      .setFooter({ text: `Suggested by ${interaction.user.tag}` })
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
@@ -77,29 +78,29 @@ const suggest = {
 const role = {
   data: new SlashCommandBuilder()
     .setName('role')
-    .setDescription('Gibt einem Mitglied eine Rolle oder entfernt sie')
+    .setDescription('Gives a member a role or removes it')
     .addSubcommand((sub) =>
       sub
         .setName('add')
-        .setDescription('Gibt einem Mitglied eine Rolle')
-        .addUserOption((opt) => opt.setName('user').setDescription('Das Mitglied').setRequired(true))
-        .addRoleOption((opt) => opt.setName('rolle').setDescription('Die Rolle').setRequired(true))
+        .setDescription('Gives a member a role')
+        .addUserOption((opt) => opt.setName('user').setDescription('The member').setRequired(true))
+        .addRoleOption((opt) => opt.setName('role').setDescription('The role').setRequired(true))
     )
     .addSubcommand((sub) =>
       sub
         .setName('remove')
-        .setDescription('Entfernt eine Rolle von einem Mitglied')
-        .addUserOption((opt) => opt.setName('user').setDescription('Das Mitglied').setRequired(true))
-        .addRoleOption((opt) => opt.setName('rolle').setDescription('Die Rolle').setRequired(true))
+        .setDescription('Removes a role from a member')
+        .addUserOption((opt) => opt.setName('user').setDescription('The member').setRequired(true))
+        .addRoleOption((opt) => opt.setName('role').setDescription('The role').setRequired(true))
     ),
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
     const member = interaction.options.getMember('user');
-    const targetRole = interaction.options.getRole('rolle');
+    const targetRole = interaction.options.getRole('role');
 
     if (!member) {
-      await interaction.reply({ content: '❌ Dieses Mitglied konnte nicht gefunden werden.', flags: EPHEMERAL });
+      await interaction.reply({ content: '❌ That member could not be found.', flags: EPHEMERAL });
       return;
     }
 
@@ -109,7 +110,7 @@ const role = {
       return;
     }
     const memberCheck = canModerate(interaction, member);
-    // Sich selbst Rollen zu geben/zu nehmen ist erlaubt (Rollenhierarchie wird oben geprüft).
+    // Granting/removing roles on yourself is allowed (the role hierarchy is checked above).
     if (!memberCheck.ok && member.id !== interaction.user.id) {
       await interaction.reply({ content: memberCheck.reason, flags: EPHEMERAL });
       return;
@@ -118,17 +119,23 @@ const role = {
     try {
       if (sub === 'add') {
         await member.roles.add(targetRole);
-        await interaction.reply(`✅ Rolle **${targetRole.name}** wurde **${member.user.tag}** gegeben.`);
+        logging.logModAction(interaction.client, interaction.guildId, {
+          action: 'Role added', target: `${member.user.tag} (${member.id})`, moderator: interaction.user.tag, reason: targetRole.name,
+        });
+        await interaction.reply(`✅ Role **${targetRole.name}** was given to **${member.user.tag}**.`);
       } else {
         await member.roles.remove(targetRole);
-        await interaction.reply(`✅ Rolle **${targetRole.name}** wurde **${member.user.tag}** entfernt.`);
+        logging.logModAction(interaction.client, interaction.guildId, {
+          action: 'Role removed', target: `${member.user.tag} (${member.id})`, moderator: interaction.user.tag, reason: targetRole.name,
+        });
+        await interaction.reply(`✅ Role **${targetRole.name}** was removed from **${member.user.tag}**.`);
       }
     } catch (err) {
-      console.error('Fehler bei /role:', err);
+      console.error('Error in /role:', err);
       await interaction.reply({
         content: isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, diese Rolle zu verwalten (evtl. höher als meine eigene Rolle).'
-          : `❌ Fehler: ${err.message}`,
+          ? "❌ I'm missing the permission to manage this role (maybe it's above my own role)."
+          : `❌ Error: ${err.message}`,
         flags: EPHEMERAL,
       });
     }
@@ -138,15 +145,15 @@ const role = {
 const purgeUser = {
   data: new SlashCommandBuilder()
     .setName('purge-user')
-    .setDescription('Löscht die letzten Nachrichten eines bestimmten Nutzers in diesem Kanal')
-    .addUserOption((opt) => opt.setName('user').setDescription('Dessen Nachrichten gelöscht werden sollen').setRequired(true))
+    .setDescription("Deletes a specific user's recent messages in this channel")
+    .addUserOption((opt) => opt.setName('user').setDescription('The user whose messages should be deleted').setRequired(true))
     .addIntegerOption((opt) =>
-      opt.setName('durchsuchen').setDescription('Wie viele Nachrichten im Kanal durchsucht werden (max. 100)').setMinValue(1).setMaxValue(100).setRequired(false)
+      opt.setName('scan').setDescription('How many channel messages to scan (max. 100)').setMinValue(1).setMaxValue(100).setRequired(false)
     ),
 
   async execute(interaction) {
     const targetUser = interaction.options.getUser('user');
-    const scanAmount = interaction.options.getInteger('durchsuchen') || 100;
+    const scanAmount = interaction.options.getInteger('scan') || 100;
 
     await interaction.deferReply({ flags: EPHEMERAL });
 
@@ -154,13 +161,16 @@ const purgeUser = {
       const messages = await interaction.channel.messages.fetch({ limit: scanAmount });
       const toDelete = messages.filter((m) => m.author.id === targetUser.id);
       const deleted = await interaction.channel.bulkDelete(toDelete, true);
-      await interaction.editReply(`🧹 ${deleted.size} Nachricht(en) von **${targetUser.tag}** gelöscht.`);
+      logging.logModAction(interaction.client, interaction.guildId, {
+        action: `Purge user (${deleted.size} messages)`, target: `${targetUser.tag} (${targetUser.id})`, moderator: interaction.user.tag, reason: null,
+      });
+      await interaction.editReply(`🧹 Deleted ${deleted.size} message(s) from **${targetUser.tag}**.`);
     } catch (err) {
-      console.error('Fehler bei /purge-user:', err);
+      console.error('Error in /purge-user:', err);
       await interaction.editReply(
         isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, Nachrichten in diesem Kanal zu löschen.'
-          : `❌ Fehler: ${err.message} (Discord kann nur Nachrichten löschen, die jünger als 14 Tage sind.)`
+          ? "❌ I'm missing the permission to delete messages in this channel."
+          : `❌ Error: ${err.message} (Discord can only bulk-delete messages younger than 14 days.)`
       );
     }
   },
@@ -169,18 +179,18 @@ const purgeUser = {
 const say = {
   data: new SlashCommandBuilder()
     .setName('say')
-    .setDescription('Lässt den Bot eine Nachricht in einem Kanal senden')
+    .setDescription('Makes the bot send a message in a channel')
     .addChannelOption((opt) =>
-      opt.setName('channel').setDescription('Der Zielkanal').addChannelTypes(ChannelType.GuildText).setRequired(true)
+      opt.setName('channel').setDescription('The target channel').addChannelTypes(ChannelType.GuildText).setRequired(true)
     )
-    .addStringOption((opt) => opt.setName('nachricht').setDescription('Der Nachrichtentext').setRequired(true)),
+    .addStringOption((opt) => opt.setName('message').setDescription('The message text').setRequired(true)),
 
   async execute(interaction) {
     const channel = interaction.options.getChannel('channel');
-    const text = interaction.options.getString('nachricht');
+    const text = interaction.options.getString('message');
 
-    // Ohne die Discord-Berechtigung "@everyone erwähnen" darf /say keine
-    // @everyone/@here/Rollen-Pings auslösen (sonst Umgehung über den Bot).
+    // Without the Discord "Mention @everyone" permission, /say may not trigger
+    // @everyone/@here/role pings (otherwise this would bypass it via the bot).
     const canMassPing = interaction.memberPermissions && interaction.memberPermissions.has(PermissionFlagsBits.MentionEveryone);
 
     try {
@@ -188,13 +198,16 @@ const say = {
         content: text,
         allowedMentions: { parse: canMassPing ? ['users', 'roles', 'everyone'] : ['users'] },
       });
-      await interaction.reply({ content: `✅ Nachricht gesendet in ${channel.toString()}.`, flags: EPHEMERAL });
+      logging.logModAction(interaction.client, interaction.guildId, {
+        action: '/say used', target: channel.toString(), moderator: interaction.user.tag, reason: text.slice(0, 200),
+      });
+      await interaction.reply({ content: `✅ Message sent in ${channel.toString()}.`, flags: EPHEMERAL });
     } catch (err) {
-      console.error('Fehler bei /say:', err);
+      console.error('Error in /say:', err);
       await interaction.reply({
         content: isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, in diesem Kanal zu schreiben.'
-          : `❌ Fehler: ${err.message}`,
+          ? "❌ I'm missing the permission to write in this channel."
+          : `❌ Error: ${err.message}`,
         flags: EPHEMERAL,
       });
     }
@@ -202,80 +215,80 @@ const say = {
 };
 
 const coinflip = {
-  data: new SlashCommandBuilder().setName('coinflip').setDescription('Wirft eine Münze (Kopf oder Zahl)'),
+  data: new SlashCommandBuilder().setName('coinflip').setDescription('Flips a coin (heads or tails)'),
   async execute(interaction) {
-    const result = Math.random() < 0.5 ? 'Kopf 🪙' : 'Zahl 🪙';
-    await interaction.reply(`🎲 Ergebnis: **${result}**`);
+    const result = Math.random() < 0.5 ? 'Heads 🪙' : 'Tails 🪙';
+    await interaction.reply(`🎲 Result: **${result}**`);
   },
 };
 
 const dice = {
   data: new SlashCommandBuilder()
     .setName('dice')
-    .setDescription('Würfelt einen Würfel')
-    .addIntegerOption((opt) => opt.setName('seiten').setDescription('Anzahl Seiten (Standard: 6)').setMinValue(2).setMaxValue(1000).setRequired(false)),
+    .setDescription('Rolls a die')
+    .addIntegerOption((opt) => opt.setName('sides').setDescription('Number of sides (default: 6)').setMinValue(2).setMaxValue(1000).setRequired(false)),
   async execute(interaction) {
-    const sides = interaction.options.getInteger('seiten') || 6;
+    const sides = interaction.options.getInteger('sides') || 6;
     const result = Math.floor(Math.random() * sides) + 1;
-    await interaction.reply(`🎲 Du hast eine **${result}** gewürfelt (1-${sides}).`);
+    await interaction.reply(`🎲 You rolled a **${result}** (1-${sides}).`);
   },
 };
 
 const EIGHT_BALL_ANSWERS = [
-  'Ja, definitiv.',
-  'Es ist sicher.',
-  'Ohne Zweifel.',
-  'Ja.',
-  'Wahrscheinlich.',
-  'Meine Sicht ist unklar - versuch es später erneut.',
-  'Kann ich jetzt nicht sagen.',
-  'Konzentriere dich und frag erneut.',
-  'Verlass dich nicht darauf.',
-  'Meine Antwort ist nein.',
-  'Meine Quellen sagen nein.',
-  'Sieht nicht gut aus.',
-  'Sehr zweifelhaft.',
+  'Yes, definitely.',
+  'It is certain.',
+  'Without a doubt.',
+  'Yes.',
+  'Probably.',
+  'Hazy - try again later.',
+  "Can't say right now.",
+  'Concentrate and ask again.',
+  "Don't count on it.",
+  'My answer is no.',
+  'My sources say no.',
+  "Doesn't look good.",
+  'Very doubtful.',
 ];
 
 const eightball = {
   data: new SlashCommandBuilder()
     .setName('8ball')
-    .setDescription('Stell der magischen 8-Ball eine Frage')
-    .addStringOption((opt) => opt.setName('frage').setDescription('Deine Frage').setRequired(true)),
+    .setDescription('Ask the magic 8-ball a question')
+    .addStringOption((opt) => opt.setName('question').setDescription('Your question').setRequired(true)),
   async execute(interaction) {
-    const question = interaction.options.getString('frage');
+    const question = interaction.options.getString('question');
     const answer = EIGHT_BALL_ANSWERS[Math.floor(Math.random() * EIGHT_BALL_ANSWERS.length)];
     const embed = new EmbedBuilder()
-      .setTitle('🎱 Magische 8-Ball')
-      .addFields({ name: 'Frage', value: question }, { name: 'Antwort', value: answer })
+      .setTitle('🎱 Magic 8-Ball')
+      .addFields({ name: 'Question', value: question }, { name: 'Answer', value: answer })
       .setColor(0x2f3136);
     await interaction.reply({ embeds: [embed] });
   },
 };
 
 const membercount = {
-  data: new SlashCommandBuilder().setName('membercount').setDescription('Zeigt die Mitgliederzahl dieses Servers'),
+  data: new SlashCommandBuilder().setName('membercount').setDescription("Shows this server's member count"),
   async execute(interaction) {
     await interaction.guild.fetch().catch(() => {});
-    await interaction.reply(`👥 Dieser Server hat **${interaction.guild.memberCount}** Mitglieder.`);
+    await interaction.reply(`👥 This server has **${interaction.guild.memberCount}** members.`);
   },
 };
 
 const roleinfo = {
   data: new SlashCommandBuilder()
     .setName('roleinfo')
-    .setDescription('Zeigt Infos zu einer Rolle')
-    .addRoleOption((opt) => opt.setName('rolle').setDescription('Die Rolle').setRequired(true)),
+    .setDescription('Shows info about a role')
+    .addRoleOption((opt) => opt.setName('role').setDescription('The role').setRequired(true)),
   async execute(interaction) {
-    const role = interaction.options.getRole('rolle');
+    const role = interaction.options.getRole('role');
     const embed = new EmbedBuilder()
-      .setTitle(`🎭 Rolle: ${role.name}`)
+      .setTitle(`🎭 Role: ${role.name}`)
       .setColor(role.color || 0x5865f2)
       .addFields(
         { name: 'ID', value: role.id, inline: true },
-        { name: 'Mitglieder', value: String(role.members?.size ?? 'unbekannt'), inline: true },
-        { name: 'Erwähnbar', value: role.mentionable ? 'Ja' : 'Nein', inline: true },
-        { name: 'Erstellt', value: `<t:${Math.floor(role.createdTimestamp / 1000)}:R>`, inline: true }
+        { name: 'Members', value: String(role.members?.size ?? 'unknown'), inline: true },
+        { name: 'Mentionable', value: role.mentionable ? 'Yes' : 'No', inline: true },
+        { name: 'Created', value: `<t:${Math.floor(role.createdTimestamp / 1000)}:R>`, inline: true }
       );
     await interaction.reply({ embeds: [embed] });
   },

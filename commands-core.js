@@ -17,38 +17,38 @@ function formatUptime(ms) {
   const seconds = totalSeconds;
 
   const parts = [];
-  if (days > 0) parts.push(`${days} Tag${days === 1 ? '' : 'e'}`);
-  if (hours > 0) parts.push(`${hours} Stunde${hours === 1 ? '' : 'n'}`);
-  if (minutes > 0) parts.push(`${minutes} Minute${minutes === 1 ? '' : 'n'}`);
-  parts.push(`${seconds} Sekunde${seconds === 1 ? '' : 'n'}`);
+  if (days > 0) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+  parts.push(`${seconds} second${seconds === 1 ? '' : 's'}`);
   return parts.join(', ');
 }
 
 const antimdm = {
-  data: new SlashCommandBuilder().setName('antimdm').setDescription('Sendet den AntiMDM-Link'),
+  data: new SlashCommandBuilder().setName('antimdm').setDescription('Sends the AntiMDM link'),
   async execute(interaction) {
     await interaction.reply(config.links.antimdm);
   },
 };
 
 const web = {
-  data: new SlashCommandBuilder().setName('web').setDescription('Zeigt den Link zur Website'),
+  data: new SlashCommandBuilder().setName('web').setDescription('Shows the link to the website'),
   async execute(interaction) {
     await interaction.reply(`Link: ${config.links.website}`);
   },
 };
 
 const uptime = {
-  data: new SlashCommandBuilder().setName('uptime').setDescription('Zeigt an, wie lange der Bot schon läuft'),
+  data: new SlashCommandBuilder().setName('uptime').setDescription('Shows how long the bot has been running'),
   async execute(interaction) {
-    // Prozess-Uptime: startet bei jedem Neustart des Bots UND nach einem
-    // Aus-/Wiedereinschalten des Hosts wieder bei 0 (siehe config.js).
+    // Process uptime: starts at 0 again on every bot restart AND after the
+    // host is powered off/on (see config.js).
     await interaction.reply(`⏱️ Uptime: ${formatUptime(config.getUptimeMs())}`);
   },
 };
 
 const status = {
-  data: new SlashCommandBuilder().setName('status').setDescription('Prüft, ob die Website erreichbar ist'),
+  data: new SlashCommandBuilder().setName('status').setDescription('Checks whether the website is reachable'),
   async execute(interaction) {
     await interaction.deferReply();
     const url = config.links.website;
@@ -61,25 +61,25 @@ const status = {
       const res = await fetch(url, { method: 'GET', signal: controller.signal, redirect: 'follow' });
       const ms = Date.now() - start;
       const embed = new EmbedBuilder()
-        .setTitle('🌐 Website-Status')
+        .setTitle('🌐 Website Status')
         .setColor(res.ok ? 0x57f287 : 0xfee75c)
         .addFields(
           { name: 'URL', value: url },
-          { name: 'Erreichbarkeit', value: res.ok ? '🟢 Erreichbar' : `🟡 HTTP-Status ${res.status}` },
-          { name: 'HTTP-Code', value: String(res.status), inline: true },
-          { name: 'Antwortzeit', value: `${ms} ms`, inline: true }
+          { name: 'Reachability', value: res.ok ? '🟢 Reachable' : `🟡 HTTP status ${res.status}` },
+          { name: 'HTTP code', value: String(res.status), inline: true },
+          { name: 'Response time', value: `${ms} ms`, inline: true }
         )
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
       const timedOut = err.name === 'AbortError';
       const embed = new EmbedBuilder()
-        .setTitle('🌐 Website-Status')
+        .setTitle('🌐 Website Status')
         .setColor(0xed4245)
         .addFields(
           { name: 'URL', value: url },
-          { name: 'Erreichbarkeit', value: '🔴 Nicht erreichbar' },
-          { name: 'Fehler', value: timedOut ? `Zeitüberschreitung (> ${TIMEOUT_MS / 1000}s)` : err.message }
+          { name: 'Reachability', value: '🔴 Unreachable' },
+          { name: 'Error', value: timedOut ? `Timed out (> ${TIMEOUT_MS / 1000}s)` : err.message }
         )
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
@@ -90,72 +90,72 @@ const status = {
 };
 
 const changelogCmd = {
-  data: new SlashCommandBuilder().setName('changelog').setDescription('Zeigt die letzten Updates des Projekts'),
+  data: new SlashCommandBuilder().setName('changelog').setDescription("Shows the project's latest updates"),
   async execute(interaction) {
     const entries = config.changelog;
     if (!entries || entries.length === 0) {
-      await interaction.reply({ content: 'Es sind noch keine Changelog-Einträge vorhanden.', flags: EPHEMERAL });
+      await interaction.reply({ content: 'There are no changelog entries yet.', flags: EPHEMERAL });
       return;
     }
     const latest = entries.slice(-5).reverse();
     const embed = new EmbedBuilder()
       .setTitle('📋 Changelog')
       .setColor(0x5865f2)
-      .setDescription(latest.map((e) => `**${e.date || '?'}** — ${e.text || '(kein Text)'}`).join('\n\n'))
-      .setFooter({ text: `Letzte ${latest.length} von ${entries.length} Einträgen` });
+      .setDescription(latest.map((e) => `**${e.date || '?'}** — ${e.text || '(no text)'}`).join('\n\n'))
+      .setFooter({ text: `Latest ${latest.length} of ${entries.length} entries` });
     await interaction.reply({ embeds: [embed] });
   },
 };
 
 const linksCmd = {
-  data: new SlashCommandBuilder().setName('links').setDescription('Zeigt wichtige Links zum Projekt'),
+  data: new SlashCommandBuilder().setName('links').setDescription('Shows important project links'),
   async execute(interaction) {
     const l = config.links || {};
     const fields = [];
     if (l.website) fields.push({ name: '🌐 Website', value: l.website });
-    if (l.discordInvite) fields.push({ name: '💬 Discord-Server', value: l.discordInvite });
+    if (l.discordInvite) fields.push({ name: '💬 Discord server', value: l.discordInvite });
     if (l.github) fields.push({ name: '🐙 GitHub', value: l.github });
     if (l.antimdm) fields.push({ name: '🛡️ AntiMDM', value: l.antimdm });
 
     if (fields.length === 0) {
-      await interaction.reply({ content: 'Es sind noch keine Links konfiguriert.', flags: EPHEMERAL });
+      await interaction.reply({ content: 'No links have been configured yet.', flags: EPHEMERAL });
       return;
     }
-    const embed = new EmbedBuilder().setTitle('🔗 Wichtige Links').setColor(0x5865f2).addFields(fields);
+    const embed = new EmbedBuilder().setTitle('🔗 Important Links').setColor(0x5865f2).addFields(fields);
     await interaction.reply({ embeds: [embed] });
   },
 };
 
 const reloadCmd = {
-  // Zugriff (nur Bot-Betreiber) wird zentral in permissions.js geprüft (access: 'bot-owner').
-  data: new SlashCommandBuilder().setName('reload').setDescription('Lädt die .env neu, ohne den Bot neuzustarten'),
+  // Access (bot operator only) is checked centrally in permissions.js (access: 'bot-owner').
+  data: new SlashCommandBuilder().setName('reload').setDescription('Reloads the .env without restarting the bot'),
   async execute(interaction) {
     try {
       config.reloadAll();
-      await interaction.reply({ content: '✅ Konfiguration wurde neu geladen (.env).', flags: EPHEMERAL });
+      await interaction.reply({ content: '✅ Configuration reloaded (.env).', flags: EPHEMERAL });
     } catch (err) {
-      console.error('Fehler beim Neuladen der Konfiguration:', err);
-      await interaction.reply({ content: '❌ Fehler beim Neuladen der Konfiguration.', flags: EPHEMERAL });
+      console.error('Error reloading the configuration:', err);
+      await interaction.reply({ content: '❌ Error reloading the configuration.', flags: EPHEMERAL });
     }
   },
 };
 
 const botinfo = {
-  data: new SlashCommandBuilder().setName('botinfo').setDescription('Zeigt technische Informationen über den Bot'),
+  data: new SlashCommandBuilder().setName('botinfo').setDescription('Shows technical information about the bot'),
   async execute(interaction) {
     const client = interaction.client;
     const mem = process.memoryUsage();
     const uptimeMs = config.getUptimeMs();
     const embed = new EmbedBuilder()
-      .setTitle('🤖 Bot-Info')
+      .setTitle('🤖 Bot Info')
       .setColor(0x5865f2)
       .addFields(
-        { name: 'Bot-Version', value: pkg.version || 'unbekannt', inline: true },
+        { name: 'Bot version', value: pkg.version || 'unknown', inline: true },
         { name: 'discord.js', value: djsVersion, inline: true },
         { name: 'Node.js', value: process.version, inline: true },
         { name: 'Server', value: String(client.guilds.cache.size), inline: true },
-        { name: 'RAM-Nutzung', value: `${(mem.rss / 1024 / 1024).toFixed(1)} MB`, inline: true },
-        { name: 'Plattform', value: `${os.platform()} (${os.arch()})`, inline: true },
+        { name: 'RAM usage', value: `${(mem.rss / 1024 / 1024).toFixed(1)} MB`, inline: true },
+        { name: 'Platform', value: `${os.platform()} (${os.arch()})`, inline: true },
         { name: 'Uptime', value: formatUptime(uptimeMs), inline: true }
       )
       .setTimestamp();
@@ -164,24 +164,24 @@ const botinfo = {
 };
 
 // ---------------------------------------------------------------------------
-// /help - wird AUTOMATISCH aus der tatsächlich registrierten Command-Liste
-// erzeugt. Es gibt keine manuelle Command-Liste mehr, die man bei neuen
-// Commands vergessen könnte: Jeder Command trägt seine Kategorie (siehe
-// Registry in commands.js). Commands ohne bekannte Kategorie landen unter
-// "Weitere" - es fällt also nie ein Command aus der Übersicht.
+// /help - generated AUTOMATICALLY from the actually registered command list.
+// There is no manual command list anymore that could be forgotten when adding
+// commands: every command carries its category (see the registry in
+// commands.js). Commands without a known category land under "Other" - so no
+// command ever drops out of the overview.
 // ---------------------------------------------------------------------------
 const CATEGORY_ORDER = [
-  ['general', '📌 Allgemein'],
+  ['general', '📌 General'],
   ['moderation', '🛡️ Moderation'],
   ['admin', '⚙️ Administration'],
   ['welcome', '👋 Welcome'],
   ['tickets', '🎫 Tickets'],
-  ['utility', '🧰 Nützliches & Spaß'],
+  ['utility', '🧰 Utility & Fun'],
   ['xp', '⭐ XP'],
   ['bot', '🤖 Bot'],
-  ['ai', '🧠 KI'],
+  ['ai', '🧠 AI'],
 ];
-const FALLBACK_CATEGORY = '📦 Weitere';
+const FALLBACK_CATEGORY = '📦 Other';
 
 function accessBadge(cmd) {
   const a = cmd.access;
@@ -192,7 +192,7 @@ function accessBadge(cmd) {
     return ' `👑 Owner`';
   }
   const restricted = Object.values(a.sub || {}).some((v) => v && v !== 'everyone');
-  return restricted ? ' `teils 🔧 Admin`' : '';
+  return restricted ? ' `partly 🔧 Admin`' : '';
 }
 
 function describeCommand(cmd) {
@@ -204,7 +204,7 @@ function describeCommand(cmd) {
 
 function buildHelpCommand(getAllCommands) {
   return {
-    data: new SlashCommandBuilder().setName('help').setDescription('Zeigt alle verfügbaren Befehle'),
+    data: new SlashCommandBuilder().setName('help').setDescription('Shows all available commands'),
     async execute(interaction) {
       const all = getAllCommands();
 
@@ -216,14 +216,14 @@ function buildHelpCommand(getAllCommands) {
         group.lines.push(describeCommand(cmd));
       }
 
-      // Felder bauen (max. 1024 Zeichen pro Feld) und auf Embeds verteilen
-      // (Discord: max. 6000 Zeichen pro Nachricht über alle Embeds hinweg -
-      // deshalb wird bei Bedarf auf mehrere Nachrichten aufgeteilt).
+      // Build fields (max. 1024 characters per field) and distribute them across
+      // embeds (Discord: max. 6000 characters per message across all embeds -
+      // so it's split across multiple messages when needed).
       const fields = [];
       for (const { label, lines } of groups.values()) {
         if (lines.length === 0) continue;
         splitLines(lines, 1000).forEach((block, i) => {
-          fields.push({ name: i === 0 ? `${label} (${lines.length})` : `${label} (Forts.)`, value: block });
+          fields.push({ name: i === 0 ? `${label} (${lines.length})` : `${label} (cont.)`, value: block });
         });
       }
 
@@ -241,9 +241,9 @@ function buildHelpCommand(getAllCommands) {
         current.addFields(f);
         size += fieldSize;
       }
-      embeds[0].setTitle(`📖 Befehlsübersicht (${total} Befehle)`);
+      embeds[0].setTitle(`📖 Command Overview (${total} commands)`);
       embeds[embeds.length - 1].setFooter({
-        text: 'Außerdem: !support <Anliegen> und !support config (Text-Befehl, kein Slash-Command)',
+        text: 'Also: !support <request> and !support config (text command, not a slash command)',
       });
 
       await interaction.reply({ embeds: [embeds[0]], flags: EPHEMERAL });

@@ -1,25 +1,24 @@
 // legacy-support.js
 //
-// Textbasierter "!support"-Befehl (kein Slash-Command).
-// - "!support config": Server-Owner/Administrator wird per Nachricht nach
-//   Rolle, Kanal UND Ticket-Kategorie gefragt (Wizard). Speichert dieselben
-//   Einstellungen wie /settings (ticketStaffRoleId, logChannelId,
-//   ticketCategoryId) - es gibt also nur EIN Einstellungs-Set, egal ob per
-//   /settings oder per !support config konfiguriert wird.
-// - "!support <Anliegen>": Erstellt ein privates Ticket-Kanal (wie der
-//   "Create Ticket"-Button) MIT dem Anliegen als Inhalt, UND schickt genau
-//   EINE Benachrichtigung in den eingestellten Log-Kanal (kein Spam mehr).
+// Text-based "!support" command (not a slash command).
+// - "!support config": the server owner/administrator is asked by message for
+//   a role, a channel AND a ticket category (wizard). Saves the same settings
+//   as /settings (ticketStaffRoleId, logChannelId, ticketCategoryId) - so
+//   there is only ONE settings set, whether configured via /settings or via
+//   !support config.
+// - "!support <request>": creates a private ticket channel (like the "Create
+//   Ticket" button) WITH the request as content, and sends exactly ONE
+//   notification to the configured log channel (no more spam).
 //
-// Der Bot verarbeitet NUR Nachrichten aus Servern (message.guild vorhanden).
-// DMs an den Bot werden nicht verarbeitet - zusätzlich zur fehlenden
-// DirectMessages-Gateway-Intent in index.js (der Bot bekommt DM-Events
-// dadurch gar nicht erst zugestellt).
+// The bot ONLY processes messages from servers (message.guild present). DMs to
+// the bot are not processed - in addition to the missing DirectMessages
+// gateway intent in index.js (so the bot never even receives DM events).
 //
-// BUGFIX (doppelte/"unendliche" Nachrichten): Das eigentliche Problem war
-// mit hoher Wahrscheinlichkeit, dass der Bot-PROZESS zweimal gleichzeitig
-// lief (siehe Sperre in index.js) - jede eingehende Nachricht wurde dadurch
-// zweimal verarbeitet. Als zusätzliche Absicherung wird hier trotzdem jede
-// Nachrichten-ID nur einmal verarbeitet (Set mit automatischer Bereinigung).
+// BUGFIX (duplicate/"infinite" messages): the real problem was most likely
+// that the bot PROCESS ran twice at the same time (see the lock in index.js) -
+// every incoming message was therefore processed twice. As an extra safeguard,
+// each message ID is still only processed once here (a Set with automatic
+// cleanup).
 
 const { ChannelType } = require('discord.js');
 const storage = require('./storage');
@@ -28,61 +27,62 @@ const { getMemberLevel, LEVEL } = require('./permissions');
 
 const PREFIX = process.env.PREFIX || '!';
 const COLLECT_TIMEOUT_MS = 30000;
+const NONE_REGEX = /^(none|keine)$/i; // "keine" kept as an accepted alias for existing users
 
-// Zusätzliche Absicherung gegen doppelte Verarbeitung derselben Nachricht.
+// Extra safeguard against processing the same message twice.
 const processedMessageIds = new Set();
 function markProcessed(id) {
   processedMessageIds.add(id);
   if (processedMessageIds.size > 500) {
-    // Älteste Einträge grob aufräumen, damit der Set nicht unbegrenzt wächst.
+    // Roughly clean up the oldest entries so the Set doesn't grow unbounded.
     const first = processedMessageIds.values().next().value;
     processedMessageIds.delete(first);
   }
 }
 
 async function handleConfig(message) {
-  // Zentrales Rangsystem (permissions.js): Server-Owner, Administrator-Rolle
-  // oder Discord-Administrator - dieselbe Regel wie bei /settings.
+  // Central rank system (permissions.js): server owner, administrator role, or
+  // Discord administrator - the same rule as /settings.
   const member = message.member;
   if (!member || getMemberLevel(message.guild, member) < LEVEL.ADMIN) {
-    await message.reply('❌ Nur Server-Owner oder die Administrator-Rolle dieses Servers dürfen das Support-System konfigurieren.');
+    await message.reply('❌ Only the server owner or the administrator role of this server may configure the support system.');
     return;
   }
 
   await message.reply(
-    '⚙️ Support-Einrichtung gestartet.\n' +
-      'Bitte **erwähne die Rolle** (z.B. `@Support`), die bei neuen Tickets benachrichtigt werden soll, oder schreibe `keine`. (30 Sekunden Zeit)'
+    '⚙️ Support setup started.\n' +
+      'Please **mention the role** (e.g. `@Support`) that should be notified about new tickets, or type `none`. (30 seconds)'
   );
 
   const roleCollected = await message.channel
     .awaitMessages({
-      filter: (m) => m.author.id === message.author.id && (m.mentions.roles.size > 0 || /^keine$/i.test(m.content.trim())),
+      filter: (m) => m.author.id === message.author.id && (m.mentions.roles.size > 0 || NONE_REGEX.test(m.content.trim())),
       max: 1,
       time: COLLECT_TIMEOUT_MS,
     })
     .catch(() => null);
 
   if (!roleCollected || roleCollected.size === 0) {
-    await message.reply(`❌ Zeit abgelaufen oder keine gültige Antwort. Bitte \`${PREFIX}support config\` erneut ausführen.`);
+    await message.reply(`❌ Timed out or no valid answer. Please run \`${PREFIX}support config\` again.`);
     return;
   }
   const roleReply = roleCollected.first();
   const role = roleReply.mentions.roles.first() || null;
 
   await message.reply(
-    '✅ Weiter.\nJetzt bitte **den Log-Kanal erwähnen** (z.B. `#support-log`), in dem neue Tickets angekündigt werden sollen, oder schreibe `keine`. (30 Sekunden Zeit)'
+    '✅ Next.\nNow please **mention the log channel** (e.g. `#support-log`) where new tickets should be announced, or type `none`. (30 seconds)'
   );
 
   const channelCollected = await message.channel
     .awaitMessages({
-      filter: (m) => m.author.id === message.author.id && (m.mentions.channels.size > 0 || /^keine$/i.test(m.content.trim())),
+      filter: (m) => m.author.id === message.author.id && (m.mentions.channels.size > 0 || NONE_REGEX.test(m.content.trim())),
       max: 1,
       time: COLLECT_TIMEOUT_MS,
     })
     .catch(() => null);
 
   if (!channelCollected || channelCollected.size === 0) {
-    await message.reply(`❌ Zeit abgelaufen oder keine gültige Antwort. Bitte \`${PREFIX}support config\` erneut ausführen.`);
+    await message.reply(`❌ Timed out or no valid answer. Please run \`${PREFIX}support config\` again.`);
     return;
   }
   const channelReply = channelCollected.first();
@@ -93,7 +93,7 @@ async function handleConfig(message) {
 
   if (!categoryId) {
     await message.reply(
-      '✅ Weiter.\nZuletzt: **Name der Kategorie**, in der Ticket-Kanäle erstellt werden sollen (z.B. `Tickets` - muss bereits existieren). (30 Sekunden Zeit)'
+      '✅ Next.\nLast: the **name of the category** in which ticket channels should be created (e.g. `Tickets` - it must already exist). (30 seconds)'
     );
 
     const categoryCollected = await message.channel
@@ -105,21 +105,17 @@ async function handleConfig(message) {
       .catch(() => null);
 
     if (!categoryCollected || categoryCollected.size === 0) {
-      await message.reply(`❌ Zeit abgelaufen. Bitte \`${PREFIX}support config\` erneut ausführen.`);
+      await message.reply(`❌ Timed out. Please run \`${PREFIX}support config\` again.`);
       return;
     }
 
     const typed = categoryCollected.first().content.trim();
     const category =
       message.guild.channels.cache.get(typed) ||
-      message.guild.channels.cache.find(
-        (c) => c.type === ChannelType.GuildCategory && c.name.toLowerCase() === typed.toLowerCase()
-      );
+      message.guild.channels.cache.find((c) => c.type === ChannelType.GuildCategory && c.name.toLowerCase() === typed.toLowerCase());
 
     if (!category) {
-      await message.reply(
-        `❌ Konnte keine Kategorie namens "${typed}" finden. Bitte erstelle sie zuerst auf dem Server und führe \`${PREFIX}support config\` erneut aus.`
-      );
+      await message.reply(`❌ Couldn't find a category named "${typed}". Please create it on the server first and run \`${PREFIX}support config\` again.`);
       return;
     }
     categoryId = category.id;
@@ -130,11 +126,11 @@ async function handleConfig(message) {
   storage.setGuildSetting(message.guild.id, 'ticketCategoryId', categoryId);
 
   await message.reply(
-    '✅ Support-System eingerichtet!\n' +
-      `• Rolle: ${role ? `<@&${role.id}>` : 'keine'}\n` +
-      `• Log-Kanal: ${logChannel ? `<#${logChannel.id}>` : 'keiner'}\n` +
-      `• Ticket-Kategorie: <#${categoryId}>\n\n` +
-      `Nutzer können jetzt mit \`${PREFIX}support <Anliegen>\` ein Ticket öffnen.`
+    '✅ Support system set up!\n' +
+      `• Role: ${role ? `<@&${role.id}>` : 'none'}\n` +
+      `• Log channel: ${logChannel ? `<#${logChannel.id}>` : 'none'}\n` +
+      `• Ticket category: <#${categoryId}>\n\n` +
+      `Users can now open a ticket with \`${PREFIX}support <request>\`.`
   );
 }
 
@@ -147,19 +143,19 @@ async function handleSupportRequest(message, text) {
   }
 
   if (result.existing) {
-    await message.reply(`❗ Du hast bereits ein offenes Ticket: ${result.channel.toString()}`);
+    await message.reply(`❗ You already have an open ticket: ${result.channel.toString()}`);
     return;
   }
 
-  await message.reply(`✅ Dein Ticket wurde erstellt: ${result.channel.toString()}`);
+  await message.reply(`✅ Your ticket was created: ${result.channel.toString()}`);
 }
 
 async function handleMessage(message) {
   if (message.author.bot) return;
-  if (!message.guild) return; // Keine DM-Verarbeitung (siehe Kommentar oben)
+  if (!message.guild) return; // No DM processing (see comment above)
   if (!message.content.startsWith(PREFIX)) return;
 
-  // Zusätzliche Absicherung gegen doppelte Verarbeitung (siehe Kommentar oben).
+  // Extra safeguard against duplicate processing (see comment above).
   if (processedMessageIds.has(message.id)) return;
   markProcessed(message.id);
 
@@ -177,7 +173,7 @@ async function handleMessage(message) {
 
   const text = args.join(' ').trim();
   if (!text) {
-    await message.reply(`Bitte gib dein Anliegen an, z.B. \`${PREFIX}support Ich brauche Hilfe bei...\``);
+    await message.reply(`Please describe your request, e.g. \`${PREFIX}support I need help with...\``);
     return;
   }
   await handleSupportRequest(message, text);

@@ -1,29 +1,29 @@
 // config.js
-// Zentrale Konfiguration - eine einzelne Datei, kein Ordner.
+// Central configuration - a single file, no folder.
 
 const dotenv = require('dotenv');
 dotenv.config();
 
 // ---------------------------------------------------------------------------
-// Feste Bot-Konstanten
+// Fixed bot constants
 // ---------------------------------------------------------------------------
 
-// Superuser des Bots (bewusst im Code hinterlegt, nicht in der .env). Wird
-// vom zentralen Berechtigungssystem (permissions.js) als "superuser"
-// ausgewertet und zusätzlich als Bot-Owner akzeptiert.
+// The bot's superuser (deliberately hardcoded, not in .env). Treated as
+// "superuser" by the central permission system (permissions.js) and also
+// accepted as a bot owner.
 const SUPERUSER_ID = '1324102364608598118';
 
-// Zeitpunkt des PROZESS-Starts. process.uptime() beginnt bei jedem neuen
-// Node-Prozess bei 0 - also nach einem Neustart des Bots UND nach einem
-// Neustart/Wiedereinschalten des Hosts. (Bewusst NICHT client.readyTimestamp:
-// der bezieht sich auf die Discord-Verbindung, nicht auf den Prozess.)
+// Timestamp of the PROCESS start. process.uptime() starts at 0 for every new
+// Node process - i.e. after a bot restart AND after the host is restarted/
+// powered back on. (Deliberately NOT client.readyTimestamp: that refers to
+// the Discord connection, not the process.)
 const PROCESS_STARTED_AT = Date.now() - Math.round(process.uptime() * 1000);
 
 function getUptimeMs() {
   return Date.now() - PROCESS_STARTED_AT;
 }
 
-// Bot-Owner: OWNER_ID aus der .env (optional) plus der Superuser.
+// Bot owners: OWNER_ID from .env (optional) plus the superuser.
 function getBotOwnerIds() {
   const ids = new Set([SUPERUSER_ID]);
   const fromEnv = (process.env.OWNER_ID || '').trim();
@@ -31,8 +31,8 @@ function getBotOwnerIds() {
   return ids;
 }
 
-// Twitch-Name für den Streaming-Status - EINMAL hier konfiguriert (per .env
-// überschreibbar), damit er nicht mehrfach im Code steht.
+// Twitch name for the streaming status - configured ONCE here (overridable
+// via .env) so it isn't hardcoded in multiple places.
 const TWITCH_DEFAULT_NAME = process.env.TWITCH_NAME || '0tylxrrrr';
 
 const links = {
@@ -45,34 +45,44 @@ const links = {
 const changelog = [
   {
     date: '2026-09-09',
-    text: 'Bot erstellt: Status-Anzeige, /antimdm, /web und /uptime hinzugefügt.',
+    text: 'Bot created: added status display, /antimdm, /web and /uptime.',
   },
   {
     date: '2026-09-09',
-    text: 'Neue Befehle: /status, /changelog, /links, /reload, /botinfo und /automod-setup hinzugefügt.',
+    text: 'New commands: /status, /changelog, /links, /reload, /botinfo and /automod-setup added.',
   },
   {
     date: '2026-09-10',
-    text: 'Struktur vereinfacht: keine Unterordner mehr.',
+    text: 'Simplified structure: no more subfolders.',
   },
   {
     date: '2026-09-10',
-    text: 'Mega-Update: Mod-Befehle, /help, Ticket-System, /settings, AutoMod-Fix, lilaner Status.',
+    text: 'Mega update: mod commands, /help, ticket system, /settings, AutoMod fix, purple status.',
   },
   {
     date: '2026-09-10',
     text:
-      '/automod-setup komplett entfernt (funktionierte nicht zuverlässig). Neue Befehle: /ping, /remindme, ' +
+      '/automod-setup removed entirely (was unreliable). New commands: /ping, /remindme, ' +
       '/suggest, /role, /purge-user, /userinfo, /serverinfo, /avatar, /poll, /slowmode, /lock, /unlock, /nickname. ' +
-      'Neu: Text-Befehl !support (+ !support config) und DM-Benachrichtigungen bei Warn/Kick/Ban/Timeout.',
+      'New: text command !support (+ !support config) and DM notifications for warn/kick/ban/timeout.',
   },
   {
     date: '2026-09-20',
     text:
-      'v7.1 (Teil 1): /appearence, Welcome-System (/welcome-setup), zentrale Berechtigungen (Owner/Admin-/Mod-Rolle), ' +
-      'Command-Registrierung repariert (Auto-Sync, kein "Unknown Command" mehr), AutoMod läuft jetzt über die ' +
-      'Discord-AutoMod-API (/automod, /automod-words), Spotify- und Developer-Befehle entfernt, ' +
-      'Bot ist per User-Install ohne Server-Einladung nutzbar, /uptime setzt sich beim Prozessstart zurück.',
+      'v7.1 (part 1): /appearence, welcome system (/welcome-setup), central permissions (owner/admin/mod role), ' +
+      'fixed command registration (auto-sync, no more "Unknown Command"), AutoMod now runs via the ' +
+      'Discord AutoMod API (/automod, /automod-words), removed Spotify/developer commands, ' +
+      'bot can be user-installed without a server invite, /uptime now resets on process start.',
+  },
+  {
+    date: '2026-09-25',
+    text:
+      'v7.2 (part 2): full English translation, /automod setup now deletes ALL existing rules first and ' +
+      'recreates them cleanly (fixes persistent "max rules of type" errors), new /automod setup-all rolls ' +
+      'the standard rules out to every server at once (bot owner only), /welcome-setup now warns directly ' +
+      'when the required Server Members Intent is missing and also greets bots, /appearence color no longer ' +
+      'fails on a plain single color, /bot-status is now bot-owner only (presence is bot-wide, not per server) ' +
+      'and gained view/set/streaming/activity/clear-activity/auto subcommands.',
   },
 ];
 

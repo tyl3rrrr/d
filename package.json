@@ -1,7 +1,7 @@
 {
   "name": "tylxrrrr-discord-bot",
-  "version": "7.1.0",
-  "description": "Discord Bot: Info-, Mod-, Utility-, Ticket-, Support-, Welcome- und Appearance-Befehle. AutoMod läuft über die offizielle Discord-AutoMod-API. Flache Struktur ohne Unterordner.",
+  "version": "7.2.0",
+  "description": "Discord bot: info, moderation, utility, ticket, support, welcome, appearance and XP commands. AutoMod runs via the official Discord AutoMod API. Flat structure with no subfolders.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {

@@ -1,39 +1,38 @@
 // command-tools.js
 //
-// Alles rund um die Registrierung der Slash-Commands bei Discord - gemeinsam
-// genutzt von `npm run deploy` (deploy-commands.js) UND vom Auto-Sync beim
-// Bot-Start (index.js). Dadurch gibt es genau EINE Wahrheit darüber, was bei
-// Discord registriert ist - der Hauptgrund für "Unknown Command" war, dass der
-// laufende Bot-Code und die bei Discord registrierte Command-Liste
-// auseinanderliefen.
+// Everything around registering slash commands with Discord - shared by
+// `npm run deploy` (deploy-commands.js) AND the auto-sync on bot startup
+// (index.js). This gives exactly ONE source of truth for what is registered
+// at Discord - the main cause of "Unknown Command" was that the running bot
+// code and the command list registered at Discord had drifted apart.
 
 const crypto = require('crypto');
 const { Routes } = require('discord.js');
 const storage = require('./storage');
 
-// Discord: Installationsarten / Kontexte (siehe Application Commands Doku)
-const INTEGRATION_GUILD_INSTALL = 0; // Bot ist auf einem Server installiert
-const INTEGRATION_USER_INSTALL = 1; // Nutzer hat den Bot in SEINEN Account installiert
-const CONTEXT_GUILD = 0; // in Servern
-const CONTEXT_BOT_DM = 1; // in DMs mit dem Bot
-const CONTEXT_PRIVATE_CHANNEL = 2; // in Gruppen-DMs / DMs mit anderen Nutzern
+// Discord: installation types / contexts (see the Application Commands docs)
+const INTEGRATION_GUILD_INSTALL = 0; // bot is installed on a server
+const INTEGRATION_USER_INSTALL = 1; // a user installed the bot to THEIR account
+const CONTEXT_GUILD = 0; // in servers
+const CONTEXT_BOT_DM = 1; // in DMs with the bot
+const CONTEXT_PRIVATE_CHANNEL = 2; // in group DMs / DMs with other users
 
 const NAME_REGEX = /^[-_\p{L}\p{N}\p{sc=Deva}\p{sc=Thai}]{1,32}$/u;
 
-// Baut die JSON-Payload für Discord.
-// scope 'global': mit integration_types/contexts (User-Install-fähig)
-// scope 'guild' : ohne diese Felder (Guild-Commands kennen sie nicht)
+// Builds the JSON payload for Discord.
+// scope 'global': with integration_types/contexts (user-install capable)
+// scope 'guild' : without these fields (guild commands don't know them)
 function buildPayload(commandList, { scope = 'global' } = {}) {
   const payload = [];
   for (const cmd of commandList) {
     if (!cmd || !cmd.data) continue;
     const json = cmd.data.toJSON();
 
-    // Zugriff wird zentral in permissions.js geprüft, nicht über Discords
-    // Standard-Berechtigungen (die würden Rollen-basierte Mod-/Admin-Rechte
-    // für Nutzer ohne die entsprechende Discord-Berechtigung verstecken).
+    // Access is checked centrally in permissions.js, not via Discord's default
+    // permissions (those would hide role-based mod/admin rights from users who
+    // lack the corresponding Discord permission).
     json.default_member_permissions = null;
-    delete json.dm_permission; // veraltet - ersetzt durch contexts
+    delete json.dm_permission; // deprecated - replaced by contexts
 
     if (scope === 'global') {
       if (cmd.scope === 'guild') {
@@ -52,32 +51,32 @@ function buildPayload(commandList, { scope = 'global' } = {}) {
   return payload;
 }
 
-// Prüft die Payload auf alles, was Discord ablehnen würde - VOR dem Senden.
-// So bricht `npm run deploy` nicht mit einer kryptischen API-Fehlermeldung ab,
-// sondern nennt exakt Command und Problem.
+// Checks the payload for anything Discord would reject - BEFORE sending.
+// That way `npm run deploy` doesn't fail with a cryptic API error, but names
+// the exact command and problem.
 function validatePayload(payload) {
   const errors = [];
   const names = new Set();
 
-  if (payload.length > 100) errors.push(`Zu viele globale Commands: ${payload.length} (Maximum 100).`);
+  if (payload.length > 100) errors.push(`Too many global commands: ${payload.length} (maximum 100).`);
 
   const checkName = (label, name) => {
-    if (typeof name !== 'string' || !NAME_REGEX.test(name)) errors.push(`${label}: ungültiger Name "${name}".`);
-    else if (name !== name.toLowerCase()) errors.push(`${label}: Name "${name}" muss komplett kleingeschrieben sein.`);
+    if (typeof name !== 'string' || !NAME_REGEX.test(name)) errors.push(`${label}: invalid name "${name}".`);
+    else if (name !== name.toLowerCase()) errors.push(`${label}: name "${name}" must be entirely lowercase.`);
   };
   const checkDesc = (label, desc) => {
     if (typeof desc !== 'string' || desc.length < 1 || desc.length > 100) {
-      errors.push(`${label}: Beschreibung muss 1-100 Zeichen lang sein (ist ${desc ? desc.length : 0}).`);
+      errors.push(`${label}: description must be 1-100 characters long (is ${desc ? desc.length : 0}).`);
     }
   };
 
   const checkOptions = (label, options, allowSub) => {
     if (!options) return;
-    if (options.length > 25) errors.push(`${label}: mehr als 25 Optionen.`);
+    if (options.length > 25) errors.push(`${label}: more than 25 options.`);
     const hasSub = options.some((o) => o.type === 1 || o.type === 2);
     const hasNonSub = options.some((o) => o.type !== 1 && o.type !== 2);
-    if (hasSub && hasNonSub) errors.push(`${label}: Subcommands dürfen nicht mit normalen Optionen gemischt werden.`);
-    if (hasSub && !allowSub) errors.push(`${label}: Subcommands sind hier nicht erlaubt (zu tiefe Verschachtelung).`);
+    if (hasSub && hasNonSub) errors.push(`${label}: subcommands must not be mixed with regular options.`);
+    if (hasSub && !allowSub) errors.push(`${label}: subcommands are not allowed here (nesting too deep).`);
 
     const seen = new Set();
     let optionalSeen = false;
@@ -85,7 +84,7 @@ function validatePayload(payload) {
       const l = `${label} > ${opt.name}`;
       checkName(l, opt.name);
       checkDesc(l, opt.description);
-      if (seen.has(opt.name)) errors.push(`${l}: doppelter Optionsname.`);
+      if (seen.has(opt.name)) errors.push(`${l}: duplicate option name.`);
       seen.add(opt.name);
       if (opt.type === 1) {
         checkOptions(l, opt.options, false);
@@ -93,11 +92,11 @@ function validatePayload(payload) {
         checkOptions(l, opt.options, true);
       } else {
         if (opt.required) {
-          if (optionalSeen) errors.push(`${l}: Pflicht-Option steht nach einer optionalen Option (Discord verlangt Pflicht zuerst).`);
+          if (optionalSeen) errors.push(`${l}: required option comes after an optional option (Discord requires required ones first).`);
         } else {
           optionalSeen = true;
         }
-        if (opt.choices && opt.choices.length > 25) errors.push(`${l}: mehr als 25 Auswahlmöglichkeiten.`);
+        if (opt.choices && opt.choices.length > 25) errors.push(`${l}: more than 25 choices.`);
       }
     }
   };
@@ -105,7 +104,7 @@ function validatePayload(payload) {
   for (const cmd of payload) {
     const label = `/${cmd.name}`;
     checkName(label, cmd.name);
-    if (names.has(cmd.name)) errors.push(`${label}: doppelt vorhanden (jeder Command darf nur EINMAL registriert werden).`);
+    if (names.has(cmd.name)) errors.push(`${label}: duplicated (each command may only be registered ONCE).`);
     names.add(cmd.name);
     if ((cmd.type ?? 1) === 1) checkDesc(label, cmd.description);
     checkOptions(label, cmd.options, true);
@@ -122,16 +121,16 @@ async function getApplicationId(rest) {
   return app.id;
 }
 
-// Löscht Guild-Commands, die aus früheren Deploys (z.B. mit GUILD_ID) übrig sind.
-// Sie würden neben den globalen Commands DOPPELT angezeigt werden bzw. veraltete
-// Stände zeigen. Rückgabe: Anzahl bereinigter Server.
+// Deletes guild commands left over from earlier deploys (e.g. with GUILD_ID).
+// They would show up DOUBLED next to the global commands or show outdated
+// versions. Returns: number of cleaned-up servers.
 async function clearStaleGuildCommands(rest, appId, extraGuildIds = [], log = () => {}) {
   const guildIds = new Set(extraGuildIds.filter(Boolean));
   try {
     const guilds = await rest.get(Routes.userGuilds(), { query: new URLSearchParams({ limit: '200' }) });
     for (const g of guilds) guildIds.add(g.id);
   } catch (err) {
-    log(`Hinweis: Server-Liste konnte nicht geladen werden (${err.message}) - prüfe nur die bekannten Server.`);
+    log(`Note: could not load the server list (${err.message}) - only checking the known servers.`);
   }
 
   let cleaned = 0;
@@ -141,20 +140,20 @@ async function clearStaleGuildCommands(rest, appId, extraGuildIds = [], log = ()
       if (Array.isArray(existing) && existing.length > 0) {
         await rest.put(Routes.applicationGuildCommands(appId, guildId), { body: [] });
         cleaned++;
-        log(`Veraltete Server-Commands auf ${guildId} entfernt (${existing.length}).`);
+        log(`Removed outdated server commands on ${guildId} (${existing.length}).`);
       }
     } catch (err) {
-      // 403/404 = Bot hat auf diesem Server keinen Command-Zugriff (z.B. nur User-Install) - unkritisch.
+      // 403/404 = the bot has no command access on this server (e.g. user install only) - not critical.
       if (![403, 404, 50001].includes(err.status) && err.code !== 50001) {
-        log(`Hinweis: Server ${guildId} konnte nicht geprüft werden (${err.message}).`);
+        log(`Note: could not check server ${guildId} (${err.message}).`);
       }
     }
   }
   return cleaned;
 }
 
-// Registriert ALLE Commands global (PUT ersetzt die komplette Liste - dadurch
-// verschwinden veraltete Commands automatisch bei Discord).
+// Registers ALL commands globally (PUT replaces the complete list - so
+// outdated commands disappear at Discord automatically).
 async function registerGlobal(rest, appId, payload) {
   return rest.put(Routes.applicationCommands(appId), { body: payload });
 }
@@ -163,14 +162,14 @@ async function registerGuild(rest, appId, guildId, payload) {
   return rest.put(Routes.applicationGuildCommands(appId, guildId), { body: payload });
 }
 
-// Auto-Sync beim Bot-Start: registriert nur, wenn sich etwas geändert hat
-// (anderer Hash ODER Command-Namen bei Discord weichen ab). Schont damit das
-// Discord-Limit für Command-Registrierungen.
+// Auto-sync on bot startup: only registers when something changed (different
+// hash OR command names at Discord differ). This spares Discord's limit for
+// command registrations.
 async function syncIfChanged(client, commandList, log = console.log) {
   const payload = buildPayload(commandList, { scope: 'global' });
   const errors = validatePayload(payload);
   if (errors.length > 0) {
-    log(`❌ Command-Sync abgebrochen - ungültige Commands:\n  - ${errors.join('\n  - ')}`);
+    log(`❌ Command sync aborted - invalid commands:\n  - ${errors.join('\n  - ')}`);
     return { changed: false, error: true };
   }
 
@@ -185,18 +184,18 @@ async function syncIfChanged(client, commandList, log = console.log) {
   const hashChanged = storage.getMeta('commandHash') !== hash;
 
   if (!hashChanged && missing.length === 0 && stale.length === 0) {
-    log(`✅ Slash-Commands sind synchron (${payload.length} Commands bei Discord registriert).`);
+    log(`✅ Slash commands are in sync (${payload.length} commands registered at Discord).`);
     return { changed: false, count: payload.length };
   }
 
-  if (missing.length) log(`ℹ️ Bei Discord fehlen: ${missing.map((n) => `/${n}`).join(', ')}`);
-  if (stale.length) log(`ℹ️ Bei Discord veraltet (werden entfernt): ${stale.map((n) => `/${n}`).join(', ')}`);
-  log('🔄 Registriere Slash-Commands neu ...');
+  if (missing.length) log(`ℹ️ Missing at Discord: ${missing.map((n) => `/${n}`).join(', ')}`);
+  if (stale.length) log(`ℹ️ Outdated at Discord (will be removed): ${stale.map((n) => `/${n}`).join(', ')}`);
+  log('🔄 Re-registering slash commands ...');
 
   const registered = await registerGlobal(client.rest, appId, payload);
   storage.setMeta('commandHash', hash);
   const cleaned = await clearStaleGuildCommands(client.rest, appId, [process.env.GUILD_ID], log);
-  log(`✅ ${registered.length} Slash-Commands global registriert${cleaned ? `, ${cleaned} Server bereinigt` : ''}.`);
+  log(`✅ ${registered.length} slash commands registered globally${cleaned ? `, ${cleaned} servers cleaned up` : ''}.`);
   return { changed: true, count: registered.length };
 }
 

@@ -1,18 +1,18 @@
 // automod-api.js
 //
-// AutoMod über die OFFIZIELLE Discord-AutoMod-API (Auto Moderation Rules).
-// Es gibt KEINEN lokalen Nachrichtenfilter im Bot-Code mehr: Discord selbst
-// prüft und blockiert die Nachrichten (schneller, auch bei Bot-Ausfall aktiv,
-// und die Regeln sind in den Servereinstellungen unter "AutoMod" sichtbar).
+// AutoMod via the OFFICIAL Discord AutoMod API (Auto Moderation Rules).
+// There is NO local message filter in the bot code anymore: Discord itself
+// checks and blocks messages (faster, still active even if the bot is down,
+// and the rules are visible under Server Settings -> AutoMod).
 //
-// Wir sprechen die REST-Endpunkte direkt über client.rest an (statt über die
-// discord.js-Manager) - so sind wir unabhängig von Cache-Einstellungen und
-// von der jeweiligen discord.js-Unterversion.
+// We call the REST endpoints directly through client.rest (instead of the
+// discord.js managers) - this keeps us independent of cache settings and of
+// the specific discord.js minor version.
 //
-// Voraussetzung: Der Bot braucht auf dem Server die Berechtigung
-// "Server verwalten" (Manage Server / MANAGE_GUILD).
+// Requirement: the bot needs the "Manage Server" (MANAGE_GUILD) permission
+// on the guild.
 //
-// Zahlenwerte laut Discord-Doku (Auto Moderation):
+// Numeric values per Discord's Auto Moderation docs:
 //   trigger_type: 1 KEYWORD, 3 SPAM, 4 KEYWORD_PRESET, 5 MENTION_SPAM, 6 MEMBER_PROFILE
 //   event_type:   1 MESSAGE_SEND, 2 MEMBER_UPDATE
 //   action type:  1 BLOCK_MESSAGE, 2 SEND_ALERT_MESSAGE, 3 TIMEOUT, 4 BLOCK_MEMBER_INTERACTION
@@ -27,26 +27,26 @@ const EVENT = { MESSAGE_SEND: 1, MEMBER_UPDATE: 2 };
 const ACTION = { BLOCK_MESSAGE: 1, SEND_ALERT_MESSAGE: 2, TIMEOUT: 3, BLOCK_MEMBER_INTERACTION: 4 };
 const PRESET = { PROFANITY: 1, SEXUAL_CONTENT: 2, SLURS: 3 };
 
-// Pro Server erlaubt Discord maximal: 6 Keyword + 1 Spam + 1 Preset + 1 Mention-Spam
-// + 1 Member-Profile = 10 Regeln.
+// Per guild, Discord allows at most: 6 keyword + 1 spam + 1 preset + 1 mention-spam
+// + 1 member-profile = 10 rules.
 const MAX_RULES_PER_GUILD = 10;
-// Laut Discord-Developer-Hilfe: "mindestens 100 AutoMod-Regeln über alle Server".
+// Per Discord's developer help center: "at least 100 AutoMod rules across all guilds".
 const BADGE_RULE_TARGET = 100;
 
 const RULE_NAMES = {
-  words: 'tylxrrrr | Wortfilter',
-  spam: 'tylxrrrr | Spam-Schutz',
-  mention: 'tylxrrrr | Mention-Spam',
-  preset: 'tylxrrrr | Standard-Filter',
-  profile: 'tylxrrrr | Profil-Filter',
+  words: 'tylxrrrr | Word Filter',
+  spam: 'tylxrrrr | Spam Protection',
+  mention: 'tylxrrrr | Mention Spam',
+  preset: 'tylxrrrr | Standard Filter',
+  profile: 'tylxrrrr | Profile Filter',
 };
 const RULE_ORDER = ['words', 'spam', 'mention', 'preset', 'profile'];
 const RULE_LABELS = {
-  words: 'Wortfilter (eigene Wortliste)',
-  spam: 'Spam-Schutz',
-  mention: 'Mention-Spam-Schutz',
-  preset: 'Standard-Filter (Beleidigungen, Sexuelles, Schimpfwörter)',
-  profile: 'Profil-Filter (Name/Bio neuer Mitglieder)',
+  words: 'Word filter (custom word list)',
+  spam: 'Spam protection',
+  mention: 'Mention-spam protection',
+  preset: 'Standard filter (profanity, sexual content, slurs)',
+  profile: 'Profile filter (new member name/bio)',
 };
 
 const DEFAULT_WORDS = [
@@ -64,37 +64,37 @@ const DEFAULT_WORDS = [
   'LoL',
 ];
 
-// Der Profil-Filter (Name/Bio) nutzt bewusst NUR eindeutig beleidigende Begriffe -
-// nicht die komplette Wortliste (sonst würden harmlose Namen wie "Fort" blockiert).
+// The profile filter (name/bio) deliberately uses ONLY clearly offensive terms -
+// not the full word list (otherwise harmless names like "Fort" would be blocked).
 const PROFILE_WORDS = ['Nigga', 'Negger', 'Hurensohn', 'Hundesohn', 'Fotze', 'Nutte'];
 
-const BLOCK_TEXT = '🚫 Diese Nachricht wurde vom AutoMod des Servers blockiert.';
-const MAX_KEYWORD_LENGTH = 60; // Discord-Limit pro Stichwort
-const MAX_KEYWORDS = 1000; // Discord-Limit pro Regel
+const BLOCK_TEXT = '🚫 This message was blocked by the server AutoMod.';
+const MAX_KEYWORD_LENGTH = 60; // Discord limit per keyword
+const MAX_KEYWORDS = 1000; // Discord limit per rule
 
 function normalizeWord(word) {
   const w = String(word || '').replace(/\s+/g, ' ').trim();
-  if (!w) return { ok: false, error: 'Das Wort darf nicht leer sein.' };
-  if (w.length > MAX_KEYWORD_LENGTH) return { ok: false, error: `Ein Wort darf höchstens ${MAX_KEYWORD_LENGTH} Zeichen lang sein.` };
+  if (!w) return { ok: false, error: 'The word cannot be empty.' };
+  if (w.length > MAX_KEYWORD_LENGTH) return { ok: false, error: `A word can be at most ${MAX_KEYWORD_LENGTH} characters long.` };
   return { ok: true, word: w };
 }
 
-// Verständliche Fehlermeldung für Discord-API-Fehler.
+// Human-readable message for Discord API errors.
 function explainError(err) {
-  if (!err) return 'Unbekannter Fehler.';
+  if (!err) return 'Unknown error.';
   if (err.status === 403 || err.code === 50013 || err.code === 50001) {
-    return 'Mir fehlt die Berechtigung **„Server verwalten“** (Manage Server). Bitte gib dem Bot diese Berechtigung, damit er AutoMod-Regeln verwalten kann.';
+    return "I'm missing the **\"Manage Server\"** permission. Please grant the bot this permission so it can manage AutoMod rules.";
   }
   const discordCode = err.rawError && err.rawError.code;
   if (discordCode === 'AUTO_MODERATION_MAX_RULES_OF_TYPE_EXCEEDED' || /MAX_RULES_OF_TYPE_EXCEEDED/i.test(err.message || '')) {
-    return 'Für diesen Regeltyp sind auf diesem Server bereits die maximal möglichen AutoMod-Regeln vorhanden (Discord-Limit) - auch durch bereits vorhandene, nicht vom Bot erstellte Regeln. Lösche in den Servereinstellungen unter „AutoMod“ eine überflüssige Regel dieses Typs, dann klappt `/automod setup` erneut.';
+    return 'This guild already has the maximum number of AutoMod rules of this type (Discord limit) - even from rules not created by this bot. Delete a spare rule of that type under Server Settings -> AutoMod, then run `/automod setup` again.';
   }
   const raw = err.rawError && err.rawError.message ? ` (${err.rawError.message})` : '';
   return `${errText(err)}${raw}`;
 }
 
 // ---------------------------------------------------------------------------
-// Regel-Definitionen (Payloads für POST /guilds/{id}/auto-moderation/rules)
+// Rule definitions (payloads for POST /guilds/{id}/auto-moderation/rules)
 // ---------------------------------------------------------------------------
 function buildRuleBody(kind, words) {
   const block = [{ type: ACTION.BLOCK_MESSAGE, metadata: { custom_message: BLOCK_TEXT } }];
@@ -140,42 +140,41 @@ function buildRuleBody(kind, words) {
         enabled: true,
       };
     default:
-      throw new Error(`Unbekannter Regeltyp: ${kind}`);
+      throw new Error(`Unknown rule kind: ${kind}`);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Regeln lesen
+// Reading rules
 // ---------------------------------------------------------------------------
 async function listAllRules(client, guildId) {
   const rules = await client.rest.get(Routes.guildAutoModerationRules(guildId));
   return Array.isArray(rules) ? rules : [];
 }
 
-// Nur die vom Bot erstellten Regeln (creator_id = Bot-ID) - wird für die
-// Badge-Zählung gebraucht (Discord zählt dort nur selbst erstellte Regeln).
+// Only the rules created by the bot itself (creator_id = bot ID) - needed for
+// the badge count (Discord only counts self-created rules there).
 async function listBotRules(client, guildId) {
   const rules = await listAllRules(client, guildId);
   return rules.filter((r) => r.creator_id === client.user.id);
 }
 
-// Discord erlaubt pro Server nur eine begrenzte Anzahl Regeln JE TRIGGER-TYP
-// (z.B. maximal 6 Keyword-Regeln, aber nur 1 Spam-Regel usw. - siehe
-// MAX_RULES_PER_GUILD-Kommentar oben). Ist dieses Limit für einen Typ schon
-// durch IRGENDEINE bestehende Regel ausgeschöpft (egal von wem erstellt),
-// schlägt das Anlegen einer weiteren Regel mit "Invalid Form Body" fehl -
-// genau das war der gemeldete Fehler. Deshalb wird hier IMMER zuerst unter
-// ALLEN vorhandenen Regeln gesucht (nicht nur den bot-eigenen), bevor eine
-// neue Regel angelegt wird.
+// Discord only allows a limited number of rules PER TRIGGER TYPE per guild
+// (e.g. at most 6 keyword rules, but only 1 spam rule, etc. - see the
+// MAX_RULES_PER_GUILD comment above). If that limit for a type is already
+// used up by ANY existing rule (no matter who created it), creating another
+// one fails with "Invalid Form Body" - which is exactly the bug that was
+// reported. `resetAndCreateRules` below avoids this entirely by deleting
+// every existing rule first, then creating clean ones.
 const KIND_TRIGGER = { words: TRIGGER.KEYWORD, spam: TRIGGER.SPAM, mention: TRIGGER.MENTION_SPAM, preset: TRIGGER.KEYWORD_PRESET, profile: TRIGGER.MEMBER_PROFILE };
 
 function findRuleByKind(botRules, kind) {
   return botRules.find((r) => r.name === RULE_NAMES[kind]) || null;
 }
 
-// Sucht unter ALLEN Regeln des Servers (jeder Ersteller) eine passende:
-// bevorzugt exakt unsere eigene (Name + vom Bot erstellt), sonst irgendeine
-// mit demselben Trigger-Typ (die dann übernommen/umbenannt wird).
+// Looks through ALL of a guild's rules (any creator) for one matching a kind:
+// prefers an exact match on our own name, otherwise any rule with the same
+// trigger type (informational use only - status display, not setup).
 function findAnyRuleForKind(allRules, kind) {
   const own = allRules.find((r) => r.name === RULE_NAMES[kind]);
   if (own) return { rule: own, isOwn: true };
@@ -183,7 +182,7 @@ function findAnyRuleForKind(allRules, kind) {
   return sameType ? { rule: sameType, isOwn: false } : null;
 }
 
-// Startwörter für einen Server: alte lokale Liste (Migration) oder Standardliste.
+// Seed words for a guild: legacy local list (migration) or the default list.
 function seedWords(guildId) {
   const legacy = storage.getGuildSettings(guildId).bannedWords;
   return Array.isArray(legacy) && legacy.length > 0 ? [...legacy] : [...DEFAULT_WORDS];
@@ -192,44 +191,95 @@ function seedWords(guildId) {
 async function createRule(client, guildId, kind, words) {
   return client.rest.post(Routes.guildAutoModerationRules(guildId), {
     body: buildRuleBody(kind, words),
-    reason: 'tylxrrrr Bot: AutoMod-Regel erstellt',
+    reason: 'tylxrrrr Bot: AutoMod rule created',
   });
 }
 
-// Benennt eine fremde/bereits vorhandene Regel auf unseren Namen um, OHNE ihre
-// bestehenden Trigger-Daten (z.B. eine bereits gepflegte Wortliste) zu verändern.
-async function adoptRule(client, guildId, rule, kind) {
-  try {
-    return await client.rest.patch(Routes.guildAutoModerationRule(guildId, rule.id), {
-      body: { name: RULE_NAMES[kind] },
-      reason: 'tylxrrrr Bot: bestehende Regel übernommen',
-    });
-  } catch (err) {
-    // Umbenennen fehlgeschlagen (z.B. fremde/nicht änderbare Regel) - Regel trotzdem weiter verwenden.
-    return rule;
+// Deletes EVERY AutoMod rule on a guild, regardless of who created it. Used
+// as a clean-slate step before (re-)creating the bot's standard rules, so a
+// full guild-wide per-type limit (from old/foreign rules) can never block
+// creation again.
+async function removeAllRules(client, guildId) {
+  const rules = await listAllRules(client, guildId);
+  let removed = 0;
+  const errors = [];
+  for (const rule of rules) {
+    try {
+      await client.rest.delete(Routes.guildAutoModerationRule(guildId, rule.id), { reason: 'tylxrrrr Bot: reset before setup' });
+      removed++;
+    } catch (err) {
+      errors.push({ id: rule.id, name: rule.name, error: explainError(err) });
+    }
   }
+  return { removed, total: rules.length, errors };
 }
 
-// Liefert die Wortfilter-Regel des Bots (übernimmt eine vorhandene Keyword-Regel
-// JEDES Erstellers, statt bei vollem Limit erfolglos eine neue anzulegen).
-async function ensureWordRule(client, guildId) {
-  const allRules = await listAllRules(client, guildId);
-  const found = findAnyRuleForKind(allRules, 'words');
-  if (found) return found.isOwn ? found.rule : adoptRule(client, guildId, found.rule, 'words');
+// Only the bot's own rules (used by /automod remove, which is scoped to what
+// this bot itself is responsible for rather than wiping out AutoMod entirely).
+async function removeBotRules(client, guildId) {
+  const botRules = await listBotRules(client, guildId);
+  let removed = 0;
+  for (const rule of botRules) {
+    try {
+      await client.rest.delete(Routes.guildAutoModerationRule(guildId, rule.id), { reason: 'tylxrrrr Bot: AutoMod rules removed' });
+      removed++;
+    } catch (err) {
+      console.warn(`AutoMod: could not delete rule ${rule.id} on ${guildId}:`, errText(err));
+    }
+  }
+  return removed;
+}
 
-  const rule = await createRule(client, guildId, 'words', seedWords(guildId));
-  // Migration abgeschlossen: die alte lokale Liste wird nicht mehr gebraucht.
-  storage.removeGuildSetting(guildId, 'bannedWords');
-  return rule;
+// THE fix for "/automod setup still doesn't work": delete every existing
+// rule on the guild first (any creator - a clean slate), then create all 5
+// standard rules fresh. This can never hit "max rules of type exceeded" from
+// leftover/foreign rules, because nothing is left over.
+async function resetAndCreateRules(client, guildId) {
+  let reset;
+  try {
+    reset = await removeAllRules(client, guildId);
+  } catch (err) {
+    return { reset: { removed: 0, total: 0, errors: [{ error: explainError(err) }] }, results: RULE_ORDER.map((kind) => ({ kind, status: 'error', error: explainError(err) })) };
+  }
+
+  const wordsSeed = seedWords(guildId);
+  const results = [];
+  for (const kind of RULE_ORDER) {
+    try {
+      await createRule(client, guildId, kind, kind === 'words' ? wordsSeed : undefined);
+      if (kind === 'words') storage.removeGuildSetting(guildId, 'bannedWords');
+      results.push({ kind, status: 'created' });
+    } catch (err) {
+      results.push({ kind, status: 'error', error: explainError(err) });
+    }
+  }
+  return { reset, results };
+}
+
+// Rolls resetAndCreateRules out across EVERY guild the bot is currently in -
+// used by /automod setup-all (bot owner only) to publish the standard rule
+// set everywhere in one go, not just on the guild the command was run in.
+async function resetAndCreateAllGuilds(client) {
+  const perGuild = [];
+  for (const guild of client.guilds.cache.values()) {
+    try {
+      const outcome = await resetAndCreateRules(client, guild.id);
+      perGuild.push({ guildId: guild.id, name: guild.name, ...outcome });
+    } catch (err) {
+      perGuild.push({ guildId: guild.id, name: guild.name, error: explainError(err) });
+    }
+    await sleep(500); // gentle on the rate limit across many guilds
+  }
+  return perGuild;
 }
 
 function getWordsFromRule(rule) {
   return (rule.trigger_metadata && rule.trigger_metadata.keyword_filter) || [];
 }
 
-// Schreibt die neue Wortliste in die Wortfilter-Regel.
+// Writes a new word list to the word-filter rule.
 async function setWords(client, guildId, rule, words) {
-  if (words.length > MAX_KEYWORDS) throw new Error(`Maximal ${MAX_KEYWORDS} Wörter pro Regel möglich.`);
+  if (words.length > MAX_KEYWORDS) throw new Error(`At most ${MAX_KEYWORDS} words per rule are allowed.`);
   const meta = rule.trigger_metadata || {};
   return client.rest.patch(Routes.guildAutoModerationRule(guildId, rule.id), {
     body: {
@@ -239,73 +289,27 @@ async function setWords(client, guildId, rule, words) {
         allow_list: meta.allow_list || [],
       },
     },
-    reason: 'tylxrrrr Bot: Wortliste geändert',
+    reason: 'tylxrrrr Bot: word list changed',
   });
 }
 
-// Legt alle Standardregeln an, die noch fehlen - übernimmt dabei bestehende
-// Regeln JEDES Erstellers, statt bei vollem Server-Limit für einen Trigger-Typ
-// erfolglos eine weitere Regel anzulegen (siehe findAnyRuleForKind oben).
-async function createStandardRules(client, guildId) {
-  const results = [];
-  let allRules;
-  try {
-    allRules = await listAllRules(client, guildId);
-  } catch (err) {
-    return [{ kind: 'all', status: 'error', error: explainError(err) }];
-  }
+// Returns the bot's word-filter rule, creating it if missing. Used by
+// /automod-words to edit the list without needing a full /automod setup.
+async function ensureWordRule(client, guildId) {
+  const allRules = await listAllRules(client, guildId);
+  const own = allRules.find((r) => r.name === RULE_NAMES.words);
+  if (own) return own;
 
-  const wordsSeed = (() => {
-    const found = findAnyRuleForKind(allRules, 'words');
-    return found ? getWordsFromRule(found.rule) : seedWords(guildId);
-  })();
-
-  for (const kind of RULE_ORDER) {
-    const found = findAnyRuleForKind(allRules, kind);
-    if (found) {
-      if (found.isOwn) {
-        results.push({ kind, status: 'exists' });
-      } else {
-        try {
-          const adopted = await adoptRule(client, guildId, found.rule, kind);
-          allRules = allRules.map((r) => (r.id === found.rule.id ? adopted : r));
-          results.push({ kind, status: 'adopted' });
-        } catch (err) {
-          results.push({ kind, status: 'error', error: explainError(err) });
-        }
-      }
-      continue;
-    }
-    try {
-      const created = await createRule(client, guildId, kind, kind === 'words' ? wordsSeed : undefined);
-      allRules.push(created);
-      if (kind === 'words') storage.removeGuildSetting(guildId, 'bannedWords');
-      results.push({ kind, status: 'created' });
-    } catch (err) {
-      results.push({ kind, status: 'error', error: explainError(err) });
-    }
-  }
-  return results;
-}
-
-async function removeBotRules(client, guildId) {
-  const botRules = await listBotRules(client, guildId);
-  let removed = 0;
-  for (const rule of botRules) {
-    try {
-      await client.rest.delete(Routes.guildAutoModerationRule(guildId, rule.id), { reason: 'tylxrrrr Bot: AutoMod-Regeln entfernt' });
-      removed++;
-    } catch (err) {
-      console.warn(`AutoMod: Regel ${rule.id} auf ${guildId} konnte nicht gelöscht werden:`, errText(err));
-    }
-  }
-  return removed;
+  const rule = await createRule(client, guildId, 'words', seedWords(guildId));
+  storage.removeGuildSetting(guildId, 'bannedWords'); // migration done, legacy list no longer needed
+  return rule;
 }
 
 // ---------------------------------------------------------------------------
-// Auto-Provisionierung: Ersatz für den früheren lokalen Filter, der auf JEDEM
-// Server automatisch aktiv war. Legt (nur) die Wortfilter-Regel an. Abschaltbar
-// mit AUTOMOD_AUTO_PROVISION=false in der .env. Weitere Regeln: /automod setup.
+// Auto-provisioning: runs when the bot joins a new guild. Only ensures the
+// word-filter rule exists (the full reset+create flow is reserved for the
+// explicit /automod setup command, since deleting rules on join without being
+// asked would be too aggressive). Disable with AUTOMOD_AUTO_PROVISION=false.
 // ---------------------------------------------------------------------------
 async function provisionGuild(client, guild) {
   if (String(process.env.AUTOMOD_AUTO_PROVISION || 'true').toLowerCase() === 'false') return;
@@ -313,9 +317,9 @@ async function provisionGuild(client, guild) {
     await ensureWordRule(client, guild.id);
   } catch (err) {
     if (err.status === 403 || err.code === 50013) {
-      console.warn(`AutoMod: Keine Berechtigung "Server verwalten" auf "${guild.name}" - Wortfilter-Regel nicht angelegt.`);
+      console.warn(`AutoMod: missing "Manage Server" permission on "${guild.name}" - word-filter rule not created.`);
     } else {
-      console.warn(`AutoMod: Regel auf "${guild.name}" konnte nicht angelegt werden:`, errText(err));
+      console.warn(`AutoMod: could not create rule on "${guild.name}":`, errText(err));
     }
   }
 }
@@ -323,12 +327,12 @@ async function provisionGuild(client, guild) {
 async function provisionAllGuilds(client) {
   for (const guild of client.guilds.cache.values()) {
     await provisionGuild(client, guild);
-    await sleep(400); // schonend für das Rate-Limit
+    await sleep(400); // gentle on the rate limit
   }
 }
 
 // ---------------------------------------------------------------------------
-// Badge-Report ("Uses AutoMod"): Zählt die vom Bot erstellten Regeln über alle Server.
+// Badge report ("Uses AutoMod"): counts the bot's own rules across all guilds.
 // ---------------------------------------------------------------------------
 async function badgeReport(client) {
   const perGuild = [];
@@ -350,10 +354,10 @@ async function badgeReport(client) {
   let hasBadgeFlag = null;
   try {
     const app = await client.application.fetch();
-    // Application-Flag "APPLICATION_AUTO_MODERATION_RULE_CREATE_BADGE" = 1 << 6
+    // Application flag "APPLICATION_AUTO_MODERATION_RULE_CREATE_BADGE" = 1 << 6
     hasBadgeFlag = (Number(app.flags && app.flags.bitfield) & (1 << 6)) !== 0;
   } catch (err) {
-    hasBadgeFlag = null; // konnte nicht ermittelt werden
+    hasBadgeFlag = null; // could not be determined
   }
 
   return {
@@ -369,8 +373,7 @@ async function badgeReport(client) {
 }
 
 // ---------------------------------------------------------------------------
-// Logging von AutoMod-Eingriffen in den Log-Kanal (falls gesetzt).
-// Ersetzt die frühere Log-Meldung des lokalen Filters.
+// Logs AutoMod actions to the configured log channel, if any.
 // ---------------------------------------------------------------------------
 async function logExecution(execution) {
   try {
@@ -381,14 +384,14 @@ async function logExecution(execution) {
     const channel = guild.channels.cache.get(settings.logChannelId);
     if (!channel || !channel.isTextBased()) return;
 
-    const where = execution.channelId ? `<#${execution.channelId}>` : 'unbekanntem Kanal';
-    const keyword = execution.matchedKeyword ? ` (Treffer: \`${truncate(execution.matchedKeyword, 40)}\`)` : '';
+    const where = execution.channelId ? `<#${execution.channelId}>` : 'an unknown channel';
+    const keyword = execution.matchedKeyword ? ` (match: \`${truncate(execution.matchedKeyword, 40)}\`)` : '';
     await channel.send({
-      content: `🚫 **AutoMod:** Aktion gegen <@${execution.userId}> in ${where}${keyword}.`,
+      content: `🚫 **AutoMod:** action against <@${execution.userId}> in ${where}${keyword}.`,
       allowedMentions: { parse: [] },
     });
   } catch (err) {
-    console.warn('AutoMod: Log-Nachricht konnte nicht gesendet werden:', errText(err));
+    console.warn('AutoMod: could not send log message:', errText(err));
   }
 }
 
@@ -410,8 +413,10 @@ module.exports = {
   ensureWordRule,
   getWordsFromRule,
   setWords,
-  createStandardRules,
+  removeAllRules,
   removeBotRules,
+  resetAndCreateRules,
+  resetAndCreateAllGuilds,
   provisionGuild,
   provisionAllGuilds,
   badgeReport,

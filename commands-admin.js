@@ -1,42 +1,40 @@
 // commands-admin.js
-// /adm-reload - Admin-Befehle für Betrieb/Wartung.
-// Zugriff (Administratoren) wird zentral in permissions.js geprüft.
+// /adm-reload - admin command for operations/maintenance.
+// Access (administrators) is checked centrally in permissions.js.
 //
-// ECHTER Neustart aus Discord heraus: Node.js kann sich nicht "selbst" neu
-// starten (der Prozess, der den Code ausführt, kann sich nicht ersetzen).
-// Was funktioniert: der Prozess beendet sich (process.exit), und der
-// Prozess-Manager des Hostings startet ihn automatisch neu (systemd mit
-// "Restart=always", PM2, Docker mit "--restart unless-stopped", Railway/
-// Render/Heroku-artige Plattformen tun das standardmäßig). OHNE einen solchen
-// Auto-Restart-Mechanismus bleibt der Bot nach /adm-reload offline, bis er
-// manuell wieder gestartet wird - das ist die technische Grenze, die sich aus
-// Discord/Node.js heraus nicht umgehen lässt.
+// A REAL restart from within Discord: Node.js can't "restart itself" (the
+// process running the code can't replace itself). What works: the process
+// exits (process.exit), and the hosting's process manager restarts it
+// automatically (systemd with "Restart=always", PM2, Docker with
+// "--restart unless-stopped", Railway/Render/Heroku-style platforms all do
+// this by default). WITHOUT such an auto-restart mechanism the bot stays
+// offline after /adm-reload until it's started manually again - that's the
+// technical limit that can't be bypassed from Discord/Node.js.
 
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const { EPHEMERAL } = require('./util');
 const logging = require('./logging');
 
 const admReload = {
-  data: new SlashCommandBuilder().setName('adm-reload').setDescription('Startet den Bot-Prozess vollständig neu (kein reines .env-Neuladen)'),
+  data: new SlashCommandBuilder().setName('adm-reload').setDescription('Fully restarts the bot process (not just a .env reload)'),
   async execute(interaction) {
     const embed = new EmbedBuilder()
-      .setTitle('🔄 Neustart eingeleitet')
+      .setTitle('🔄 Restart initiated')
       .setDescription(
-        'Der Bot-Prozess wird in 3 Sekunden beendet.\n' +
-          'Läuft er unter einem Prozess-Manager mit Auto-Restart (systemd, PM2, Docker, ' +
-          'Railway/Render o.ä.), kommt er automatisch wieder online. **Ohne** Auto-Restart ' +
-          'bleibt er offline, bis er manuell neu gestartet wird - das lässt sich von hier aus nicht umgehen.'
+        'The bot process will exit in 3 seconds.\n' +
+          'If it runs under a process manager with auto-restart (systemd, PM2, Docker, ' +
+          'Railway/Render, etc.), it comes back online automatically. **Without** auto-restart ' +
+          "it stays offline until it's started manually - that can't be avoided from here."
       )
       .setColor(0xfee75c);
     await interaction.reply({ embeds: [embed] });
 
     logging.logToGuild(interaction.client, interaction.guildId, {
-      title: '🔄 Bot-Neustart ausgelöst',
-      fields: [{ name: 'Von', value: interaction.user.tag }],
+      title: '🔄 Bot restart triggered',
+      fields: [{ name: 'By', value: interaction.user.tag }],
       level: 'warn',
     });
 
-    console.log(`🔄 Neustart ausgelöst von ${interaction.user.tag} (${interaction.user.id}) - PID ${process.pid} beendet sich in 3s.`);
+    console.log(`🔄 Restart triggered by ${interaction.user.tag} (${interaction.user.id}) - PID ${process.pid} exits in 3s.`);
     setTimeout(() => process.exit(0), 3000);
   },
 };

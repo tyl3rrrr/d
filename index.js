@@ -1,19 +1,11 @@
 // index.js
-// Discord Bot - flache Struktur, kein Ordner-Scan.
+// Discord bot - flat structure, no folder scanning.
 //
-// STATUS-HINWEIS ("lilaner Punkt") - v2 Fix:
-// Die Vorversion setzte ZWEI Aktivitäten gleichzeitig (Watching + Streaming).
-// Berichte/Community-Threads zu genau diesem Verhalten zeigen, dass Discord
-// bei mehreren Aktivitäten nicht zuverlässig die lilane Streaming-Badge
-// anzeigt - oft gewinnt die zuerst gesendete Aktivität, oder der Client
-// zeigt gar keine Badge. Jetzt wird NUR EINE Aktivität vom Typ "Streaming"
-// gesetzt (Name = Website-Text, damit die Website trotzdem sichtbar bleibt:
-// "Streaming https://...").
-//
-// WICHTIG (von Discord selbst so vorgegeben, nicht änderbar): Die "url" MUSS
-// zu twitch.tv oder youtube.com gehören und exakt wie eine echte URL
-// aussehen (inkl. "https://www."), sonst wird die Badge nicht lila, sondern
-// bleibt grün. Anpassbar über STREAM_URL in der .env.
+// STATUS NOTE: presence (online status, activity, streaming) is managed in
+// presence.js and controlled via /bot-status and /bstatnow. By default the bot
+// shows its current server count. Note: for the purple "Streaming" badge,
+// Discord requires the URL to belong to twitch.tv or youtube.com and look like
+// a real URL (incl. "https://www.").
 
 const fs = require('fs');
 const path = require('path');
@@ -33,17 +25,16 @@ const logging = require('./logging');
 const { EPHEMERAL, errText } = require('./util');
 
 // ---------------------------------------------------------------------------
-// BUGFIX "unendliche/doppelte Nachrichten": Die wahrscheinlichste Ursache
-// war, dass der Bot-PROZESS zweimal gleichzeitig lief (z.B. weil ein alter
-// Prozess beim Neustart nicht beendet wurde). Discord schickt Nachrichten-
-// und Interaktions-Events an JEDE aktive Verbindung mit demselben Token -
-// bei zwei laufenden Prozessen wird deshalb jede Aktion zweimal ausgeführt
-// (doppelte DMs, doppelte Support-Anfragen, etc.).
+// BUGFIX "infinite/duplicate messages": the most likely cause was that the bot
+// PROCESS ran twice at the same time (e.g. because an old process wasn't
+// terminated on restart). Discord sends message and interaction events to
+// EVERY active connection with the same token - so with two running processes
+// every action is executed twice (duplicate DMs, duplicate support requests,
+// etc.).
 //
-// Diese einfache Sperrdatei verhindert das: Beim Start wird geprüft, ob
-// bereits ein anderer, noch laufender Prozess eine bot.lock-Datei hält.
-// Falls ja, wird der Start abgebrochen und eine klare Fehlermeldung
-// ausgegeben, statt dass zwei Instanzen gleichzeitig laufen.
+// This simple lock file prevents that: on startup it checks whether another,
+// still-running process already holds a bot.lock file. If so, startup is
+// aborted with a clear error message instead of two instances running at once.
 // ---------------------------------------------------------------------------
 const LOCK_FILE = path.join(__dirname, 'bot.lock');
 
@@ -52,38 +43,38 @@ function isProcessAlive(pid) {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    return false; // Prozess existiert nicht (mehr)
+    return false; // process does not (or no longer) exist
   }
 }
 
 function acquireLock() {
   try {
-    // 'wx' = exklusiv erstellen: schlägt ATOMAR fehl, wenn die Datei schon
-    // existiert. Das verhindert die Race Condition der Vorversion, bei der
-    // zwei Prozesse, die exakt gleichzeitig starten, beide den
-    // existsSync()-Check bestehen könnten, bevor einer von ihnen schreibt.
+    // 'wx' = create exclusively: fails ATOMICALLY if the file already exists.
+    // This avoids the race condition of the earlier version, where two
+    // processes starting at exactly the same time could both pass the
+    // existsSync() check before either of them wrote.
     fs.writeFileSync(LOCK_FILE, String(process.pid), { flag: 'wx' });
-    return; // Erfolgreich als einziger Prozess registriert.
+    return; // Successfully registered as the only process.
   } catch (err) {
-    if (err.code !== 'EEXIST') throw err; // unerwarteter Fehler -> weiterwerfen
+    if (err.code !== 'EEXIST') throw err; // unexpected error -> rethrow
   }
 
-  // Datei existiert bereits - prüfen, ob der darin stehende Prozess noch lebt.
+  // File already exists - check whether the process named in it is still alive.
   const existingPid = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim(), 10);
   if (!Number.isNaN(existingPid) && isProcessAlive(existingPid)) {
     console.error(
-      `❌ Der Bot läuft bereits in einem anderen Prozess auf DIESER Maschine (PID ${existingPid})!\n` +
-        'Genau DAS verursacht doppelte/"unendliche" Nachrichten (Discord schickt Events an beide Prozesse).\n' +
-        `Bitte beende den anderen Prozess (z.B. "kill ${existingPid}" oder den Task-Manager) und starte danach neu.\n` +
-        `Falls du sicher bist, dass kein anderer Prozess läuft, lösche einfach die Datei "bot.lock" und starte erneut.\n\n` +
-        `⚠️ WICHTIG: Diese Sperre schützt nur VOR DIESER MASCHINE. Läuft derselbe Bot-Token zusätzlich auf\n` +
-        `einem anderen Server/Hosting-Dienst (Railway, Replit, VPS, ein zweiter Laptop, ...), erkennt diese\n` +
-        `Sperre das NICHT - dort würde jede Aktion trotzdem doppelt ausgeführt. Bitte prüfen!`
+      `❌ The bot is already running in another process on THIS machine (PID ${existingPid})!\n` +
+        'That is exactly what causes duplicate/"infinite" messages (Discord sends events to both processes).\n' +
+        `Please stop the other process (e.g. "kill ${existingPid}" or the task manager) and restart.\n` +
+        'If you are sure no other process is running, simply delete the file "bot.lock" and start again.\n\n' +
+        '⚠️ IMPORTANT: this lock only protects against duplicates on THIS machine. If the same bot token also runs on\n' +
+        'another server/hosting service (Railway, Replit, a VPS, a second laptop, ...), this lock does NOT detect it -\n' +
+        'every action would still be executed twice there. Please check!'
     );
     process.exit(1);
   }
 
-  // Verwaiste Lock-Datei (Prozess existiert nicht mehr) - überschreiben.
+  // Orphaned lock file (process no longer exists) - overwrite it.
   fs.writeFileSync(LOCK_FILE, String(process.pid), 'utf8');
 }
 
@@ -91,7 +82,7 @@ function releaseLock() {
   try {
     if (fs.existsSync(LOCK_FILE)) fs.unlinkSync(LOCK_FILE);
   } catch (err) {
-    // Ignorieren - beim Herunterfahren nicht kritisch.
+    // Ignore - not critical during shutdown.
   }
 }
 
@@ -109,26 +100,26 @@ process.on('SIGTERM', () => {
 const { DISCORD_TOKEN } = process.env;
 
 if (!DISCORD_TOKEN) {
-  console.error('Fehler: DISCORD_TOKEN fehlt in der .env Datei. Bot kann nicht starten.');
+  console.error('Error: DISCORD_TOKEN is missing from the .env file. The bot cannot start.');
   process.exit(1);
 }
 
 // INTENTS:
-// - Guilds: Grundvoraussetzung für Slash-Commands.
-// - GuildMessages + MessageContent (PRIVILEGIERT): für den "!support"-Text-Befehl.
-// - GuildMembers (PRIVILEGIERT): für das Welcome-System (Beitritt neuer Mitglieder).
-// - AutoModerationExecution: Log-Meldungen, wenn Discords AutoMod eingreift.
-// Beide privilegierten Intents müssen im Developer Portal unter "Bot" ->
-// "Privileged Gateway Intents" aktiviert sein. Ist einer NICHT aktiviert, startet
-// der Bot trotzdem: er versucht es automatisch ohne den fehlenden Intent und
-// meldet laut in der Konsole, welche Funktion dadurch deaktiviert ist.
-// DirectMessages wird bewusst NICHT angefordert (Bot verarbeitet keine DMs).
+// - Guilds: basic requirement for slash commands.
+// - GuildMessages + MessageContent (PRIVILEGED): for the "!support" text command.
+// - GuildMembers (PRIVILEGED): for the welcome system (new members joining).
+// - AutoModerationExecution: log messages when Discord's AutoMod acts.
+// Both privileged intents must be enabled in the Developer Portal under "Bot" ->
+// "Privileged Gateway Intents". If one is NOT enabled, the bot still starts: it
+// automatically retries without the missing intent and reports loudly in the
+// console which feature is disabled as a result.
+// DirectMessages is deliberately NOT requested (the bot doesn't process DMs).
 //
-// RAM-Optimierung: begrenzte Caches + Sweeper (Ziel: zuverlässig unter 2GB).
+// RAM optimization: limited caches + sweepers (goal: reliably under 2GB).
 const INTENT_PLANS = [
-  { members: true, content: true, note: 'alle Intents' },
-  { members: false, content: true, note: 'OHNE Server Members Intent (Welcome-System inaktiv)' },
-  { members: false, content: false, note: 'OHNE Server Members + Message Content Intent (Welcome-System und !support inaktiv)' },
+  { members: true, content: true, note: 'all intents' },
+  { members: false, content: true, note: 'WITHOUT Server Members Intent (welcome system inactive)' },
+  { members: false, content: false, note: 'WITHOUT Server Members + Message Content Intent (welcome system and !support inactive)' },
 ];
 
 function createClient(plan) {
@@ -162,20 +153,19 @@ function createClient(plan) {
 const commands = new Collection();
 for (const command of commandList) {
   if (!command || !command.data || typeof command.execute !== 'function') {
-    console.warn('Warnung: Ein Command-Modul ist ungültig (fehlt data oder execute) - wird übersprungen.');
+    console.warn('Warning: a command module is invalid (missing data or execute) - skipping it.');
     continue;
   }
   commands.set(command.data.name, command);
 }
 
 console.log('='.repeat(60));
-console.log(`🚀 Bot-Prozess gestartet - PID: ${process.pid}`);
+console.log(`🚀 Bot process started - PID: ${process.pid}`);
 console.log(`📦 Node.js: ${process.version}`);
-console.log(`${commands.size} Command(s) geladen: ${[...commands.keys()].join(', ')}`);
+console.log(`${commands.size} command(s) loaded: ${[...commands.keys()].join(', ')}`);
 console.log('='.repeat(60));
 
-
-// Jede Interaktions-ID nur EINMAL verarbeiten (zusätzlicher Schutz gegen doppelte Zustellung).
+// Process each interaction ID only ONCE (extra protection against duplicate delivery).
 const processedInteractionIds = new Set();
 function markInteractionProcessed(id) {
   processedInteractionIds.add(id);
@@ -188,30 +178,36 @@ function wire(client, plan) {
   client.commands = commands;
 
   client.once(Events.ClientReady, async (readyClient) => {
-    console.log(`Eingeloggt als ${readyClient.user.tag} (${readyClient.guilds.cache.size} Server) - Modus: ${plan.note}`);
+    console.log(`Logged in as ${readyClient.user.tag} (${readyClient.guilds.cache.size} servers) - mode: ${plan.note}`);
+    if (!plan.members) {
+      console.error(
+        '🚨 The WELCOME SYSTEM is INACTIVE: the "SERVER MEMBERS INTENT" is not enabled in the Developer Portal.\n' +
+          '   Enable it at https://discord.com/developers/applications -> your app -> Bot -> Privileged Gateway Intents, then restart.'
+      );
+    }
     await presence.apply(readyClient);
-    // Presence im Automatikmodus regelmäßig, aber zurückhaltend aktualisieren (keine
-    // unnötigen API-Anfragen bei jeder kleinen Änderung) - alle 10 Minuten reicht.
+    // Refresh presence in automatic mode regularly but sparingly (no needless
+    // API calls on every small change) - every 10 minutes is enough.
     setInterval(() => presence.apply(readyClient), 10 * 60 * 1000);
     xpRuntime.startBoardScheduler(readyClient);
 
-    // Auto-Sync: sorgt dafür, dass bei Discord genau die Commands registriert sind,
-    // die dieser Code kennt (Hauptursache von "Unknown Command"). AUTO_DEPLOY=false schaltet es ab.
+    // Auto-sync: makes sure Discord has exactly the commands this code knows
+    // (the main cause of "Unknown Command"). AUTO_DEPLOY=false turns it off.
     if (String(process.env.AUTO_DEPLOY || 'true').toLowerCase() !== 'false') {
       try {
         await commandTools.syncIfChanged(readyClient, commandList, (m) => console.log(m));
       } catch (err) {
-        console.error('❌ Command-Sync fehlgeschlagen (führe "npm run deploy" manuell aus):', errText(err));
+        console.error('❌ Command sync failed (run "npm run deploy" manually):', errText(err));
       }
     }
 
-    // AutoMod-Regeln (Discord-API) auf allen Servern sicherstellen.
-    automod.provisionAllGuilds(readyClient).catch((err) => console.warn('AutoMod-Provisionierung:', errText(err)));
+    // Make sure the AutoMod word-filter rule exists on all servers (Discord API).
+    automod.provisionAllGuilds(readyClient).catch((err) => console.warn('AutoMod provisioning:', errText(err)));
   });
 
   client.on(Events.GuildCreate, (guild) => {
     automod.provisionGuild(client, guild).catch(() => {});
-    presence.apply(client).catch(() => {}); // Serveranzahl hat sich geändert (im Automatikmodus)
+    presence.apply(client).catch(() => {}); // server count changed (in automatic mode)
   });
 
   client.on(Events.GuildDelete, () => {
@@ -224,7 +220,7 @@ function wire(client, plan) {
 
   client.on(Events.InteractionCreate, async (interaction) => {
     if (processedInteractionIds.has(interaction.id)) {
-      console.warn(`Doppelte Interaktion ignoriert: ${interaction.id}`);
+      console.warn(`Duplicate interaction ignored: ${interaction.id}`);
       return;
     }
     markInteractionProcessed(interaction.id);
@@ -233,11 +229,11 @@ function wire(client, plan) {
       if (interaction.isChatInputCommand()) {
         const command = client.commands.get(interaction.commandName);
         if (!command) {
-          console.warn(`Unbekannter Command aufgerufen: /${interaction.commandName} (Registrierung bei Discord veraltet? -> npm run deploy)`);
-          await interaction.reply({ content: 'Unbekannter Befehl.', flags: EPHEMERAL }).catch(() => {});
+          console.warn(`Unknown command invoked: /${interaction.commandName} (registration at Discord out of date? -> npm run deploy)`);
+          await interaction.reply({ content: 'Unknown command.', flags: EPHEMERAL }).catch(() => {});
           return;
         }
-        // ZENTRALE Berechtigungsprüfung (permissions.js) - vor JEDEM Command.
+        // CENTRAL permission check (permissions.js) - before EVERY command.
         if (!(await permissions.guardInteraction(interaction, command))) return;
         await command.execute(interaction);
         return;
@@ -248,9 +244,9 @@ function wire(client, plan) {
         if (interaction.customId === CLOSE_BUTTON_ID) return void (await handleCloseTicket(interaction));
       }
     } catch (error) {
-      console.error('Fehler beim Verarbeiten einer Interaktion:', error);
-      if (interaction.guildId) logging.logError(client, interaction.guildId, error, `Interaktion /${interaction.commandName || '?'}`);
-      const payload = { content: 'Beim Ausführen dieser Aktion ist ein Fehler aufgetreten.', flags: EPHEMERAL };
+      console.error('Error while processing an interaction:', error);
+      if (interaction.guildId) logging.logError(client, interaction.guildId, error, `Interaction /${interaction.commandName || '?'}`);
+      const payload = { content: 'An error occurred while running this action.', flags: EPHEMERAL };
       if (interaction.replied || interaction.deferred) await interaction.followUp(payload).catch(() => {});
       else await interaction.reply(payload).catch(() => {});
     }
@@ -260,17 +256,17 @@ function wire(client, plan) {
     try {
       if (plan.content) await legacySupport.handleMessage(message);
     } catch (error) {
-      console.error('Fehler beim Verarbeiten einer Nachricht:', error);
+      console.error('Error while processing a message:', error);
     }
-    // XP-Vergabe funktioniert unabhängig vom Message-Content-Intent (nutzt nur Länge/Autor).
+    // XP awarding works independently of the Message Content intent (only uses length/author).
     await xpRuntime.handleMessageXP(message);
   });
 
-  client.on(Events.Error, (error) => console.error('Discord-Client-Fehler:', error));
+  client.on(Events.Error, (error) => console.error('Discord client error:', error));
 }
 
 process.on('unhandledRejection', (error) => {
-  console.error('Unbehandelte Promise-Ablehnung:', error);
+  console.error('Unhandled promise rejection:', error);
 });
 
 function isDisallowedIntents(err) {
@@ -287,14 +283,14 @@ async function start(planIndex = 0) {
     await client.destroy().catch(() => {});
     if (isDisallowedIntents(err) && planIndex < INTENT_PLANS.length - 1) {
       console.error(
-        '⚠️ Ein PRIVILEGIERTER Intent ist im Developer Portal nicht aktiviert.\n' +
-          '   -> https://discord.com/developers/applications -> dein Bot -> "Bot" -> "Privileged Gateway Intents":\n' +
-          '      "SERVER MEMBERS INTENT" und "MESSAGE CONTENT INTENT" einschalten und speichern.\n' +
-          `   Ich versuche es jetzt: ${INTENT_PLANS[planIndex + 1].note}`
+        '⚠️ A PRIVILEGED intent is not enabled in the Developer Portal.\n' +
+          '   -> https://discord.com/developers/applications -> your bot -> "Bot" -> "Privileged Gateway Intents":\n' +
+          '      enable "SERVER MEMBERS INTENT" and "MESSAGE CONTENT INTENT" and save.\n' +
+          `   Retrying now: ${INTENT_PLANS[planIndex + 1].note}`
       );
       return start(planIndex + 1);
     }
-    console.error('❌ Login fehlgeschlagen:', errText(err));
+    console.error('❌ Login failed:', errText(err));
     process.exit(1);
   }
 }

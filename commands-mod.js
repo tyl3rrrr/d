@@ -6,10 +6,10 @@ const { canModerate } = require('./permissions');
 const { EPHEMERAL, isMissingPermError } = require('./util');
 const logging = require('./logging');
 
-// Zugriff (Moderator / Admin / Owner) wird zentral in permissions.js geprüft
-// (access: 'mod' in der Registry in commands.js) - hier steht bewusst keine
-// eigene Berechtigungsprüfung mehr. Die Rangprüfung gegenüber dem ZIEL
-// (Moderator darf keine Admins kicken/bannen ...) übernimmt canModerate().
+// Access (moderator / admin / owner) is checked centrally in permissions.js
+// (access: 'mod' in the registry in commands.js) - deliberately no own
+// permission check here anymore. The rank check against the TARGET
+// (a moderator may not kick/ban admins ...) is handled by canModerate().
 async function denyIfNotModerable(interaction, targetMember) {
   const check = canModerate(interaction, targetMember);
   if (check.ok) return false;
@@ -20,22 +20,22 @@ async function denyIfNotModerable(interaction, targetMember) {
 const kick = {
   data: new SlashCommandBuilder()
     .setName('kick')
-    .setDescription('Kickt ein Mitglied vom Server')
-    .addUserOption((opt) => opt.setName('user').setDescription('Das zu kickende Mitglied').setRequired(true))
-    .addStringOption((opt) => opt.setName('reason').setDescription('Grund für den Kick').setRequired(false)),
+    .setDescription('Kicks a member from the server')
+    .addUserOption((opt) => opt.setName('user').setDescription('The member to kick').setRequired(true))
+    .addStringOption((opt) => opt.setName('reason').setDescription('Reason for the kick').setRequired(false)),
 
   async execute(interaction) {
     const member = interaction.options.getMember('user');
-    const reason = interaction.options.getString('reason') || 'Kein Grund angegeben';
+    const reason = interaction.options.getString('reason') || 'No reason given';
 
     if (!member) {
-      await interaction.reply({ content: '❌ Dieses Mitglied konnte nicht gefunden werden.', flags: EPHEMERAL });
+      await interaction.reply({ content: '❌ That member could not be found.', flags: EPHEMERAL });
       return;
     }
     if (await denyIfNotModerable(interaction, member)) return;
     if (!member.kickable) {
       await interaction.reply({
-        content: '❌ Ich kann dieses Mitglied nicht kicken (höhere Rolle oder fehlende Berechtigung).',
+        content: "❌ I can't kick this member (higher role or missing permission).",
         flags: EPHEMERAL,
       });
       return;
@@ -52,13 +52,13 @@ const kick = {
       logging.logModAction(interaction.client, interaction.guildId, {
         action: 'Kick', target: `${member.user.tag} (${member.id})`, moderator: interaction.user.tag, reason,
       });
-      await interaction.reply(`👋 **${member.user.tag}** wurde gekickt. Grund: ${reason}`);
+      await interaction.reply(`👋 **${member.user.tag}** was kicked. Reason: ${reason}`);
     } catch (err) {
-      console.error('Fehler bei /kick:', err);
+      console.error('Error in /kick:', err);
       await interaction.reply({
         content: isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, dieses Mitglied zu kicken.'
-          : `❌ Fehler beim Kicken: ${err.message}`,
+          ? "❌ I'm missing the permission to kick this member."
+          : `❌ Error while kicking: ${err.message}`,
         flags: EPHEMERAL,
       });
     }
@@ -68,13 +68,13 @@ const kick = {
 const ban = {
   data: new SlashCommandBuilder()
     .setName('ban')
-    .setDescription('Bannt ein Mitglied vom Server')
-    .addUserOption((opt) => opt.setName('user').setDescription('Das zu bannende Mitglied').setRequired(true))
-    .addStringOption((opt) => opt.setName('reason').setDescription('Grund für den Bann').setRequired(false))
+    .setDescription('Bans a member from the server')
+    .addUserOption((opt) => opt.setName('user').setDescription('The member to ban').setRequired(true))
+    .addStringOption((opt) => opt.setName('reason').setDescription('Reason for the ban').setRequired(false))
     .addIntegerOption((opt) =>
       opt
         .setName('delete_days')
-        .setDescription('Nachrichten der letzten X Tage löschen (0-7)')
+        .setDescription('Delete messages from the last X days (0-7)')
         .setMinValue(0)
         .setMaxValue(7)
         .setRequired(false)
@@ -82,16 +82,16 @@ const ban = {
 
   async execute(interaction) {
     const targetUser = interaction.options.getUser('user');
-    const reason = interaction.options.getString('reason') || 'Kein Grund angegeben';
+    const reason = interaction.options.getString('reason') || 'No reason given';
     const deleteDays = interaction.options.getInteger('delete_days') || 0;
 
-    // Ist das Ziel noch auf dem Server, gilt die Rangprüfung; Nutzer, die den Server
-    // schon verlassen haben, dürfen weiterhin per ID gebannt werden.
+    // If the target is still on the server the rank check applies; users who
+    // have already left may still be banned by ID.
     const targetMember = interaction.options.getMember('user');
     if (await denyIfNotModerable(interaction, targetMember)) return;
     if (targetMember && !targetMember.bannable) {
       await interaction.reply({
-        content: '❌ Ich kann dieses Mitglied nicht bannen (höhere Rolle oder fehlende Berechtigung).',
+        content: "❌ I can't ban this member (higher role or missing permission).",
         flags: EPHEMERAL,
       });
       return;
@@ -111,13 +111,13 @@ const ban = {
         reason,
         deleteMessageSeconds: deleteDays * 86400,
       });
-      await interaction.reply(`🔨 **${targetUser.tag}** wurde gebannt. Grund: ${reason}`);
+      await interaction.reply(`🔨 **${targetUser.tag}** was banned. Reason: ${reason}`);
     } catch (err) {
-      console.error('Fehler bei /ban:', err);
+      console.error('Error in /ban:', err);
       await interaction.reply({
         content: isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, dieses Mitglied zu bannen.'
-          : `❌ Fehler beim Bannen: ${err.message}`,
+          ? "❌ I'm missing the permission to ban this member."
+          : `❌ Error while banning: ${err.message}`,
         flags: EPHEMERAL,
       });
     }
@@ -127,27 +127,27 @@ const ban = {
 const timeout = {
   data: new SlashCommandBuilder()
     .setName('timeout')
-    .setDescription('Versetzt ein Mitglied in Timeout (Auszeit)')
-    .addUserOption((opt) => opt.setName('user').setDescription('Das Mitglied').setRequired(true))
+    .setDescription('Puts a member in timeout')
+    .addUserOption((opt) => opt.setName('user').setDescription('The member').setRequired(true))
     .addIntegerOption((opt) =>
-      opt.setName('minutes').setDescription('Dauer in Minuten (max. 40320 = 28 Tage)').setMinValue(1).setMaxValue(40320).setRequired(true)
+      opt.setName('minutes').setDescription('Duration in minutes (max. 40320 = 28 days)').setMinValue(1).setMaxValue(40320).setRequired(true)
     )
-    .addStringOption((opt) => opt.setName('reason').setDescription('Grund für den Timeout').setRequired(false)),
+    .addStringOption((opt) => opt.setName('reason').setDescription('Reason for the timeout').setRequired(false)),
 
   async execute(interaction) {
     const member = interaction.options.getMember('user');
     const minutes = interaction.options.getInteger('minutes');
-    const reason = interaction.options.getString('reason') || 'Kein Grund angegeben';
+    const reason = interaction.options.getString('reason') || 'No reason given';
 
     if (!member) {
-      await interaction.reply({ content: '❌ Dieses Mitglied konnte nicht gefunden werden.', flags: EPHEMERAL });
+      await interaction.reply({ content: '❌ That member could not be found.', flags: EPHEMERAL });
       return;
     }
 
     if (await denyIfNotModerable(interaction, member)) return;
     if (!member.moderatable) {
       await interaction.reply({
-        content: '❌ Ich kann dieses Mitglied nicht in Timeout versetzen (höhere Rolle oder fehlende Berechtigung).',
+        content: "❌ I can't timeout this member (higher role or missing permission).",
         flags: EPHEMERAL,
       });
       return;
@@ -156,7 +156,7 @@ const timeout = {
     try {
       await member.timeout(minutes * 60 * 1000, reason);
       logging.logModAction(interaction.client, interaction.guildId, {
-        action: `Timeout (${minutes} Min.)`, target: `${member.user.tag} (${member.id})`, moderator: interaction.user.tag, reason,
+        action: `Timeout (${minutes} min)`, target: `${member.user.tag} (${member.id})`, moderator: interaction.user.tag, reason,
       });
       await sendModActionDM(member.user, {
         action: 'timeout',
@@ -165,13 +165,13 @@ const timeout = {
         guildName: interaction.guild.name,
         durationMinutes: minutes,
       });
-      await interaction.reply(`🔇 **${member.user.tag}** wurde für ${minutes} Minute(n) in Timeout versetzt. Grund: ${reason}`);
+      await interaction.reply(`🔇 **${member.user.tag}** was timed out for ${minutes} minute(s). Reason: ${reason}`);
     } catch (err) {
-      console.error('Fehler bei /timeout:', err);
+      console.error('Error in /timeout:', err);
       await interaction.reply({
         content: isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, dieses Mitglied in Timeout zu versetzen.'
-          : `❌ Fehler beim Timeout: ${err.message}`,
+          ? "❌ I'm missing the permission to timeout this member."
+          : `❌ Error during timeout: ${err.message}`,
         flags: EPHEMERAL,
       });
     }
@@ -181,25 +181,25 @@ const timeout = {
 const warn = {
   data: new SlashCommandBuilder()
     .setName('warn')
-    .setDescription('Verwaltet Verwarnungen für Mitglieder')
+    .setDescription('Manages warnings for members')
     .addSubcommand((sub) =>
       sub
         .setName('add')
-        .setDescription('Verwarnt ein Mitglied')
-        .addUserOption((opt) => opt.setName('user').setDescription('Das Mitglied').setRequired(true))
-        .addStringOption((opt) => opt.setName('reason').setDescription('Grund der Verwarnung').setRequired(true))
+        .setDescription('Warns a member')
+        .addUserOption((opt) => opt.setName('user').setDescription('The member').setRequired(true))
+        .addStringOption((opt) => opt.setName('reason').setDescription('Reason for the warning').setRequired(true))
     )
     .addSubcommand((sub) =>
       sub
         .setName('list')
-        .setDescription('Zeigt alle Verwarnungen eines Mitglieds')
-        .addUserOption((opt) => opt.setName('user').setDescription('Das Mitglied').setRequired(true))
+        .setDescription("Shows all of a member's warnings")
+        .addUserOption((opt) => opt.setName('user').setDescription('The member').setRequired(true))
     )
     .addSubcommand((sub) =>
       sub
         .setName('clear')
-        .setDescription('Löscht alle Verwarnungen eines Mitglieds')
-        .addUserOption((opt) => opt.setName('user').setDescription('Das Mitglied').setRequired(true))
+        .setDescription("Deletes all of a member's warnings")
+        .addUserOption((opt) => opt.setName('user').setDescription('The member').setRequired(true))
     ),
 
   async execute(interaction) {
@@ -226,8 +226,8 @@ const warn = {
         guildName: interaction.guild.name,
       });
       await interaction.reply(
-        `⚠️ **${targetUser.tag}** wurde verwarnt. Grund: ${reason}\nAnzahl Verwarnungen: ${all.length}` +
-          (dmSent ? '' : '\n_(Hinweis: DM konnte nicht zugestellt werden - Nutzer hat DMs evtl. deaktiviert.)_')
+        `⚠️ **${targetUser.tag}** was warned. Reason: ${reason}\nTotal warnings: ${all.length}` +
+          (dmSent ? '' : '\n_(Note: the DM could not be delivered - the user may have DMs disabled.)_')
       );
       return;
     }
@@ -235,15 +235,15 @@ const warn = {
     if (sub === 'list') {
       const entries = storage.getWarns(guildId, targetUser.id);
       if (entries.length === 0) {
-        await interaction.reply({ content: `${targetUser.tag} hat keine Verwarnungen.`, flags: EPHEMERAL });
+        await interaction.reply({ content: `${targetUser.tag} has no warnings.`, flags: EPHEMERAL });
         return;
       }
       const embed = new EmbedBuilder()
-        .setTitle(`⚠️ Verwarnungen von ${targetUser.tag}`)
+        .setTitle(`⚠️ Warnings for ${targetUser.tag}`)
         .setColor(0xfee75c)
         .setDescription(
           entries
-            .map((e, i) => `**#${i + 1}** — ${e.reason}\n<t:${Math.floor(new Date(e.date).getTime() / 1000)}:R> von <@${e.moderatorId}>`)
+            .map((e, i) => `**#${i + 1}** — ${e.reason}\n<t:${Math.floor(new Date(e.date).getTime() / 1000)}:R> by <@${e.moderatorId}>`)
             .join('\n\n')
         );
       await interaction.reply({ embeds: [embed], flags: EPHEMERAL });
@@ -252,7 +252,10 @@ const warn = {
 
     if (sub === 'clear') {
       storage.clearWarns(guildId, targetUser.id);
-      await interaction.reply(`🧹 Alle Verwarnungen von **${targetUser.tag}** wurden gelöscht.`);
+      logging.logModAction(interaction.client, interaction.guildId, {
+        action: 'Warnings cleared', target: `${targetUser.tag} (${targetUser.id})`, moderator: interaction.user.tag, reason: null,
+      });
+      await interaction.reply(`🧹 All warnings for **${targetUser.tag}** were deleted.`);
       return;
     }
   },
@@ -261,28 +264,28 @@ const warn = {
 const clear = {
   data: new SlashCommandBuilder()
     .setName('clear')
-    .setDescription('Löscht mehrere Nachrichten in diesem Kanal')
+    .setDescription('Deletes several messages in this channel')
     .addIntegerOption((opt) =>
-      opt.setName('anzahl').setDescription('Wie viele Nachrichten gelöscht werden sollen (1-100)').setMinValue(1).setMaxValue(100).setRequired(true)
+      opt.setName('amount').setDescription('How many messages to delete (1-100)').setMinValue(1).setMaxValue(100).setRequired(true)
     ),
 
   async execute(interaction) {
-    const amount = interaction.options.getInteger('anzahl');
+    const amount = interaction.options.getInteger('amount');
 
     await interaction.deferReply({ flags: EPHEMERAL });
 
     try {
       const deleted = await interaction.channel.bulkDelete(amount, true);
       logging.logModAction(interaction.client, interaction.guildId, {
-        action: `Clear (${deleted.size} Nachrichten)`, target: interaction.channel.toString(), moderator: interaction.user.tag, reason: null,
+        action: `Clear (${deleted.size} messages)`, target: interaction.channel.toString(), moderator: interaction.user.tag, reason: null,
       });
-      await interaction.editReply(`🧹 ${deleted.size} Nachricht(en) gelöscht.`);
+      await interaction.editReply(`🧹 Deleted ${deleted.size} message(s).`);
     } catch (err) {
-      console.error('Fehler bei /clear:', err);
+      console.error('Error in /clear:', err);
       await interaction.editReply(
         isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, Nachrichten in diesem Kanal zu löschen.'
-          : `❌ Fehler beim Löschen: ${err.message} (Discord kann nur Nachrichten löschen, die jünger als 14 Tage sind.)`
+          ? "❌ I'm missing the permission to delete messages in this channel."
+          : `❌ Error while deleting: ${err.message} (Discord can only bulk-delete messages younger than 14 days.)`
       );
     }
   },
@@ -291,29 +294,30 @@ const clear = {
 const slowmode = {
   data: new SlashCommandBuilder()
     .setName('slowmode')
-    .setDescription('Setzt den Slowmode (Verzögerung) für diesen Kanal')
+    .setDescription('Sets the slowmode (delay) for this channel')
     .addIntegerOption((opt) =>
       opt
-        .setName('sekunden')
-        .setDescription('Verzögerung in Sekunden (0 = aus, max. 21600 = 6 Stunden)')
+        .setName('seconds')
+        .setDescription('Delay in seconds (0 = off, max. 21600 = 6 hours)')
         .setMinValue(0)
         .setMaxValue(21600)
         .setRequired(true)
     ),
 
   async execute(interaction) {
-    const seconds = interaction.options.getInteger('sekunden');
+    const seconds = interaction.options.getInteger('seconds');
     try {
-      await interaction.channel.setRateLimitPerUser(seconds, `Gesetzt von ${interaction.user.tag}`);
-      await interaction.reply(
-        seconds === 0 ? '✅ Slowmode wurde deaktiviert.' : `✅ Slowmode auf ${seconds} Sekunde(n) gesetzt.`
-      );
+      await interaction.channel.setRateLimitPerUser(seconds, `Set by ${interaction.user.tag}`);
+      logging.logModAction(interaction.client, interaction.guildId, {
+        action: seconds === 0 ? 'Slowmode disabled' : `Slowmode set to ${seconds}s`, target: interaction.channel.toString(), moderator: interaction.user.tag, reason: null,
+      });
+      await interaction.reply(seconds === 0 ? '✅ Slowmode was disabled.' : `✅ Slowmode set to ${seconds} second(s).`);
     } catch (err) {
-      console.error('Fehler bei /slowmode:', err);
+      console.error('Error in /slowmode:', err);
       await interaction.reply({
         content: isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, den Slowmode zu ändern.'
-          : `❌ Fehler: ${err.message}`,
+          ? "❌ I'm missing the permission to change the slowmode."
+          : `❌ Error: ${err.message}`,
         flags: EPHEMERAL,
       });
     }
@@ -323,20 +327,23 @@ const slowmode = {
 const lock = {
   data: new SlashCommandBuilder()
     .setName('lock')
-    .setDescription('Sperrt diesen Kanal für @everyone (keine Nachrichten mehr)'),
+    .setDescription('Locks this channel for @everyone (no more messages)'),
 
   async execute(interaction) {
     try {
       await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
         SendMessages: false,
       });
-      await interaction.reply('🔒 Kanal wurde gesperrt - @everyone kann keine Nachrichten mehr senden.');
+      logging.logModAction(interaction.client, interaction.guildId, {
+        action: 'Channel locked', target: interaction.channel.toString(), moderator: interaction.user.tag, reason: null,
+      });
+      await interaction.reply('🔒 Channel locked - @everyone can no longer send messages.');
     } catch (err) {
-      console.error('Fehler bei /lock:', err);
+      console.error('Error in /lock:', err);
       await interaction.reply({
         content: isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, diesen Kanal zu sperren.'
-          : `❌ Fehler: ${err.message}`,
+          ? "❌ I'm missing the permission to lock this channel."
+          : `❌ Error: ${err.message}`,
         flags: EPHEMERAL,
       });
     }
@@ -346,20 +353,23 @@ const lock = {
 const unlock = {
   data: new SlashCommandBuilder()
     .setName('unlock')
-    .setDescription('Entsperrt diesen Kanal wieder für @everyone'),
+    .setDescription('Unlocks this channel for @everyone again'),
 
   async execute(interaction) {
     try {
       await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
         SendMessages: null,
       });
-      await interaction.reply('🔓 Kanal wurde entsperrt.');
+      logging.logModAction(interaction.client, interaction.guildId, {
+        action: 'Channel unlocked', target: interaction.channel.toString(), moderator: interaction.user.tag, reason: null,
+      });
+      await interaction.reply('🔓 Channel unlocked.');
     } catch (err) {
-      console.error('Fehler bei /unlock:', err);
+      console.error('Error in /unlock:', err);
       await interaction.reply({
         content: isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, diesen Kanal zu entsperren.'
-          : `❌ Fehler: ${err.message}`,
+          ? "❌ I'm missing the permission to unlock this channel."
+          : `❌ Error: ${err.message}`,
         flags: EPHEMERAL,
       });
     }
@@ -369,10 +379,10 @@ const unlock = {
 const nickname = {
   data: new SlashCommandBuilder()
     .setName('nickname')
-    .setDescription('Ändert den Servernamen (Nickname) eines Mitglieds')
-    .addUserOption((opt) => opt.setName('user').setDescription('Das Mitglied').setRequired(true))
+    .setDescription("Changes a member's server nickname")
+    .addUserOption((opt) => opt.setName('user').setDescription('The member').setRequired(true))
     .addStringOption((opt) =>
-      opt.setName('name').setDescription('Neuer Nickname (leer lassen zum Zurücksetzen)').setRequired(false)
+      opt.setName('name').setDescription('New nickname (leave empty to reset)').setRequired(false)
     ),
 
   async execute(interaction) {
@@ -380,14 +390,14 @@ const nickname = {
     const name = interaction.options.getString('name') || null;
 
     if (!member) {
-      await interaction.reply({ content: '❌ Dieses Mitglied konnte nicht gefunden werden.', flags: EPHEMERAL });
+      await interaction.reply({ content: '❌ That member could not be found.', flags: EPHEMERAL });
       return;
     }
 
     if (await denyIfNotModerable(interaction, member)) return;
     if (!member.manageable) {
       await interaction.reply({
-        content: '❌ Ich kann den Nickname dieses Mitglieds nicht ändern (höhere Rolle oder Server-Owner).',
+        content: "❌ I can't change this member's nickname (higher role or server owner).",
         flags: EPHEMERAL,
       });
       return;
@@ -396,15 +406,15 @@ const nickname = {
     try {
       await member.setNickname(name);
       logging.logModAction(interaction.client, interaction.guildId, {
-        action: 'Nickname geändert', target: `${member.user.tag} (${member.id})`, moderator: interaction.user.tag, reason: name || '(zurückgesetzt)',
+        action: 'Nickname changed', target: `${member.user.tag} (${member.id})`, moderator: interaction.user.tag, reason: name || '(reset)',
       });
-      await interaction.reply(name ? `✅ Nickname von **${member.user.tag}** geändert zu **${name}**.` : `✅ Nickname von **${member.user.tag}** zurückgesetzt.`);
+      await interaction.reply(name ? `✅ Changed the nickname of **${member.user.tag}** to **${name}**.` : `✅ Reset the nickname of **${member.user.tag}**.`);
     } catch (err) {
-      console.error('Fehler bei /nickname:', err);
+      console.error('Error in /nickname:', err);
       await interaction.reply({
         content: isMissingPermError(err)
-          ? '❌ Mir fehlt die Berechtigung, den Nickname dieses Mitglieds zu ändern (evtl. höhere Rolle).'
-          : `❌ Fehler: ${err.message}`,
+          ? "❌ I'm missing the permission to change this member's nickname (maybe a higher role)."
+          : `❌ Error: ${err.message}`,
         flags: EPHEMERAL,
       });
     }

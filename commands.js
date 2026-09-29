@@ -1,15 +1,15 @@
 // commands.js
-// REGISTRY: Sammelt ALLE Slash-Commands an EINER Stelle - mit Kategorie
-// (für /help), Zugriffsstufe (für permissions.js) und Geltungsbereich.
-// index.js, deploy-commands.js und command-tools.js importieren nur diese Datei.
+// REGISTRY: collects ALL slash commands in ONE place - with category (for
+// /help), access level (for permissions.js) and scope.
+// index.js, deploy-commands.js and command-tools.js only import this file.
 //
 // Eintrag: [command, { category, access, scope }]
 //   category: general | moderation | admin | welcome | tickets | utility | xp | bot | ai
-//   access  : everyone | mod | admin | bot-owner | superuser  (oder { default, sub: {...} })
-//   scope   : 'anywhere' (Server, DMs, User-Install) | 'guild' (nur Server, in denen der Bot ist)
+//   access  : everyone | mod | admin | bot-owner | superuser  (or { default, sub: {...} })
+//   scope   : 'anywhere' (servers, DMs, user install) | 'guild' (only servers the bot is in)
 //
-// Neuer Command? Modul importieren und hier EINE Zeile ergänzen - /help,
-// Registrierung und Berechtigungsprüfung übernehmen den Rest automatisch.
+// New command? Import the module and add ONE line here - /help, registration
+// and permission checking take care of the rest automatically.
 
 const core = require('./commands-core');
 const mod = require('./commands-mod');
@@ -28,7 +28,7 @@ const { xpBoard, xpSet, xpStats, xpGlobal } = require('./commands-xp');
 const help = core.buildHelpCommand(() => allCommands);
 
 const registry = [
-  // Allgemein
+  // General
   [core.antimdm, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [core.web, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [core.uptime, { category: 'general', access: 'everyone', scope: 'anywhere' }],
@@ -43,7 +43,7 @@ const registry = [
   [botStatus, { category: 'bot', access: 'bot-owner', scope: 'guild' }],
   [bstatnow, { category: 'bot', access: 'superuser', scope: 'anywhere' }],
 
-  // Moderation (Moderator-Rolle, Administrator-Rolle oder Server-Owner)
+  // Moderation (moderator role, administrator role, or server owner)
   [mod.kick, { category: 'moderation', access: 'mod', scope: 'guild' }],
   [mod.ban, { category: 'moderation', access: 'mod', scope: 'guild' }],
   [mod.timeout, { category: 'moderation', access: 'mod', scope: 'guild' }],
@@ -60,7 +60,7 @@ const registry = [
   // Administration
   [settings, { category: 'admin', access: 'admin', scope: 'guild' }],
   [automodWords, { category: 'admin', access: 'admin', scope: 'guild' }],
-  [automodCmd, { category: 'admin', access: 'admin', scope: 'guild' }],
+  [automodCmd, { category: 'admin', access: { default: 'admin', sub: { 'setup-all': 'bot-owner' } }, scope: 'guild' }],
   [appearence, { category: 'admin', access: { default: 'everyone', sub: { nickname: 'admin', profile: 'admin', color: 'admin' } }, scope: 'guild' }],
 
   // Welcome
@@ -75,7 +75,7 @@ const registry = [
   // Tickets
   [ticketPanel, { category: 'tickets', access: 'admin', scope: 'guild' }],
 
-  // Nützliches & Spaß
+  // Utility & fun
   [utility.userinfo, { category: 'utility', access: 'everyone', scope: 'anywhere' }],
   [utility.serverinfo, { category: 'utility', access: 'everyone', scope: 'guild' }],
   [utility.avatar, { category: 'utility', access: 'everyone', scope: 'anywhere' }],
@@ -96,11 +96,11 @@ const allCommands = registry.map(([cmd, meta]) => {
   return cmd;
 });
 
-// Sicherheitsnetz: doppelte Namen sofort beim Laden melden.
+// Safety net: report duplicate names immediately on load.
 const seen = new Set();
 for (const cmd of allCommands) {
   const name = cmd.data.name;
-  if (seen.has(name)) throw new Error(`Command /${name} ist doppelt in commands.js registriert.`);
+  if (seen.has(name)) throw new Error(`Command /${name} is registered twice in commands.js.`);
   seen.add(name);
 }
 

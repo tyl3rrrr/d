@@ -1,10 +1,10 @@
 // logging.js
-// Zentrales Bot-Logging in den per Server konfigurierten Log-Kanal
-// (siehe /settings log-channel). Wird von Mod-Commands, Tickets, dem
-// Welcome-System, Einstellungsänderungen und Fehlern aufgerufen.
+// Central bot logging into the per-server configured log channel (see
+// /settings log-channel). Called by mod commands, tickets, the welcome
+// system, setting changes, and errors.
 //
-// Loggt NIEMALS Secrets/Tokens/API-Keys - es werden ausschließlich die
-// hier übergebenen, unkritischen Felder (Titel/Beschreibung/Felder) verschickt.
+// NEVER logs secrets/tokens/API keys - only the unrelated fields passed in
+// here (title/description/fields) are ever sent.
 
 const { EmbedBuilder } = require('discord.js');
 const storage = require('./storage');
@@ -26,18 +26,18 @@ async function logToGuild(client, guildId, { title, description, fields, level =
     if (fields && fields.length) embed.addFields(fields);
     await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
   } catch (err) {
-    console.warn(`Logging: Nachricht auf ${guildId} konnte nicht gesendet werden:`, errText(err));
+    console.warn(`Logging: could not send message on ${guildId}:`, errText(err));
   }
 }
 
-// Kurzhelfer für Moderationsaktionen (kick/ban/timeout/warn/clear/lock/unlock/nickname).
+// Short helper for moderation actions (kick/ban/timeout/warn/clear/lock/unlock/nickname).
 function logModAction(client, guildId, { action, target, moderator, reason }) {
   return logToGuild(client, guildId, {
     title: `⚖️ ${action}`,
     fields: [
-      { name: 'Nutzer', value: target ? `${target}` : 'Unbekannt', inline: true },
-      { name: 'Von', value: moderator ? `${moderator}` : 'Unbekannt', inline: true },
-      { name: 'Grund', value: reason || 'Kein Grund angegeben' },
+      { name: 'User', value: target ? `${target}` : 'Unknown', inline: true },
+      { name: 'By', value: moderator ? `${moderator}` : 'Unknown', inline: true },
+      { name: 'Reason', value: reason || 'No reason given' },
     ],
     level: 'warn',
   });
@@ -45,20 +45,20 @@ function logModAction(client, guildId, { action, target, moderator, reason }) {
 
 function logSettingChange(client, guildId, { setting, value, moderator }) {
   return logToGuild(client, guildId, {
-    title: '⚙️ Einstellung geändert',
+    title: '⚙️ Setting changed',
     fields: [
-      { name: 'Einstellung', value: setting, inline: true },
-      { name: 'Neuer Wert', value: value ?? 'entfernt', inline: true },
-      { name: 'Von', value: moderator ? `${moderator}` : 'Unbekannt', inline: true },
+      { name: 'Setting', value: setting, inline: true },
+      { name: 'New value', value: value ?? 'removed', inline: true },
+      { name: 'By', value: moderator ? `${moderator}` : 'Unknown', inline: true },
     ],
   });
 }
 
 function logError(client, guildId, err, context) {
   return logToGuild(client, guildId, {
-    title: '❌ Fehler',
-    description: context ? `Kontext: ${context}` : undefined,
-    fields: [{ name: 'Meldung', value: errText(err) }],
+    title: '❌ Error',
+    description: context ? `Context: ${context}` : undefined,
+    fields: [{ name: 'Message', value: errText(err) }],
     level: 'error',
   });
 }

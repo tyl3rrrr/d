@@ -1,14 +1,14 @@
 // storage.js
-// Einfache JSON-Datei-Persistenz - EINE Datei (data.json) im Hauptordner,
-// kein Unterordner, keine Datenbank nötig.
+// Simple JSON-file persistence - ONE file (data.json) in the main folder, no
+// subfolder, no database needed.
 //
-// data.json wird beim ersten Start automatisch angelegt und ist bewusst
-// in .gitignore aufgeführt: das sind Laufzeitdaten deines Servers
-// (Ticket-Zähler, Warnungen, Kanal-IDs) und sollen nicht ins Git-Repo,
-// damit `git push` nie wegen dieser Datei Probleme macht.
+// data.json is created automatically on first start and is deliberately
+// listed in .gitignore: it holds your server's runtime data (ticket
+// counters, warnings, channel IDs) and shouldn't go into the git repo, so
+// `git push` never has trouble because of this file.
 //
-// Alle serverspezifischen Einstellungen liegen getrennt unter
-// data.guilds[<guildId>] - Server A kann Server B nie beeinflussen.
+// All per-server settings live separately under data.guilds[<guildId>] -
+// server A can never affect server B.
 
 const fs = require('fs');
 const path = require('path');
@@ -21,10 +21,10 @@ function defaultData() {
     //              adminRoleId, modRoleId, welcome: {...}, appearanceRoleId, ... }
     guilds: {},
     warns: {}, // guildId -> { userId -> [ { reason, date, moderatorId } ] }
-    // XP-System: STRIKT pro Server getrennt (guildId -> userId -> { xp, level }).
-    // XP auf Server A hat dadurch technisch keinen Zugriff auf/Einfluss auf Server B.
+    // XP system: STRICTLY separated per server (guildId -> userId -> { xp, level }).
+    // XP on server A therefore has no technical access to or effect on server B.
     xp: {},
-    meta: {}, // botweite Metadaten (z.B. commandHash für den Command-Auto-Sync, Bot-Presence)
+    meta: {}, // bot-wide metadata (e.g. commandHash for command auto-sync, bot presence)
   };
 }
 
@@ -33,7 +33,7 @@ function loadData() {
   try {
     raw = fs.readFileSync(DATA_FILE, 'utf8');
   } catch (err) {
-    // Datei existiert noch nicht -> mit Standardwerten neu anlegen
+    // File doesn't exist yet -> create it fresh with defaults
     const fresh = defaultData();
     saveData(fresh);
     return fresh;
@@ -42,19 +42,19 @@ function loadData() {
   try {
     const parsed = JSON.parse(raw);
     const merged = { ...defaultData(), ...parsed };
-    // Altlast entfernen: Die Spotify-Integration wurde entfernt - gespeicherte
-    // Spotify-Tokens werden beim nächsten Speichern nicht mehr mitgeschrieben.
+    // Remove legacy leftovers: the Spotify integration was removed - any
+    // stored Spotify tokens are dropped the next time this is saved.
     delete merged.spotify;
     return merged;
   } catch (err) {
-    // Datei ist kaputt: NICHT stillschweigend überschreiben (Datenverlust!),
-    // sondern zuerst eine Sicherungskopie anlegen.
+    // File is corrupted: do NOT silently overwrite it (data loss!) - back it
+    // up first instead.
     const backup = `${DATA_FILE}.corrupt-${Date.now()}`;
     try {
       fs.writeFileSync(backup, raw, 'utf8');
-      console.error(`⚠️ data.json war beschädigt (${err.message}). Sicherung: ${path.basename(backup)}. Es wird mit leeren Daten weitergemacht.`);
+      console.error(`⚠️ data.json was corrupted (${err.message}). Backup: ${path.basename(backup)}. Continuing with empty data.`);
     } catch (backupErr) {
-      console.error('⚠️ data.json war beschädigt und konnte nicht gesichert werden:', backupErr.message);
+      console.error('⚠️ data.json was corrupted and could not be backed up:', backupErr.message);
     }
     const fresh = defaultData();
     saveData(fresh);
@@ -64,13 +64,13 @@ function loadData() {
 
 function saveData(data) {
   try {
-    // Erst in eine Temp-Datei schreiben, dann atomar umbenennen - so bleibt
-    // data.json auch bei einem Absturz mitten im Schreiben unversehrt.
+    // Write to a temp file first, then rename atomically - this keeps
+    // data.json intact even if the process crashes mid-write.
     const tmp = `${DATA_FILE}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
     fs.renameSync(tmp, DATA_FILE);
   } catch (err) {
-    console.error('Konnte data.json nicht speichern:', err.message);
+    console.error('Could not save data.json:', err.message);
   }
 }
 
@@ -108,7 +108,7 @@ function nextTicketNumber(guildId) {
   return next;
 }
 
-const MAX_WARNS_PER_USER = 100; // verhindert unbegrenztes Wachstum über Jahre hinweg
+const MAX_WARNS_PER_USER = 100; // prevents unbounded growth over years
 
 function addWarn(guildId, userId, warnEntry) {
   if (!data.warns[guildId]) data.warns[guildId] = {};
@@ -134,7 +134,7 @@ function clearWarns(guildId, userId) {
 }
 
 // ---------------------------------------------------------------------------
-// XP-System (siehe Punkt 14/15 im Auftrag) - pro Server isoliert.
+// XP system - isolated per server.
 // ---------------------------------------------------------------------------
 function getUserXP(guildId, userId) {
   const guild = data.xp[guildId] || {};
@@ -148,7 +148,7 @@ function setUserXP(guildId, userId, xp, level) {
   return data.xp[guildId][userId];
 }
 
-// Rangliste EINES Servers, absteigend nach XP.
+// Leaderboard for a SINGLE server, descending by XP.
 function getGuildLeaderboard(guildId) {
   const guild = data.xp[guildId] || {};
   return Object.entries(guild)
@@ -156,10 +156,10 @@ function getGuildLeaderboard(guildId) {
     .sort((a, b) => b.xp - a.xp);
 }
 
-// GLOBALE Rangliste: alle (User, Server)-XP-Paare über alle Server hinweg,
-// absteigend sortiert. Ein User kann mehrfach auftreten (einmal pro Server,
-// auf dem er XP hat) - genau wie im gewünschten Format "User | Platz | Server".
-// Rein lesend/aggregierend - verändert nie XP eines einzelnen Servers.
+// GLOBAL leaderboard: every (user, server) XP pair across all servers,
+// sorted descending. A user can appear more than once (once per server they
+// have XP on) - matching the requested "User | Rank | Server" format.
+// Purely reads/aggregates - never changes any single server's XP.
 function getGlobalLeaderboard(limit = 100) {
   const all = [];
   for (const guildId of Object.keys(data.xp)) {
@@ -171,7 +171,7 @@ function getGlobalLeaderboard(limit = 100) {
   return typeof limit === 'number' ? all.slice(0, limit) : all;
 }
 
-// Position eines (User, Server)-Eintrags in der globalen Rangliste (1-basiert), oder null.
+// Position of a (user, server) entry in the global leaderboard (1-based), or null.
 function getGlobalRank(guildId, userId) {
   const all = getGlobalLeaderboard(Infinity);
   const idx = all.findIndex((e) => e.guildId === guildId && e.userId === userId);

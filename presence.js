@@ -1,13 +1,12 @@
 // presence.js
-// Bot-Status/Presence.
+// Bot online status/presence.
 //
-// WICHTIG (Discord-Einschränkung): Die Presence (Online/Idle/DND/Streaming ...)
-// gehört zum BOT-USER selbst und ist damit GLOBAL für alle Server gleichzeitig -
-// Discord bietet keine Möglichkeit, sie pro Server unterschiedlich zu setzen.
-// "/status ist pro Server konfigurierbar" wird deshalb so umgesetzt: die zuletzt
-// von einem berechtigten Nutzer getroffene Einstellung gilt bot-weit, es wird aber
-// gespeichert, WER sie WO gesetzt hat (siehe /status). Automatikmodus zeigt sonst
-// die aktuelle Serveranzahl an (Punkt 10) und aktualisiert sich selbst zurückhaltend.
+// IMPORTANT (Discord limitation): presence (Online/Idle/DND/Streaming ...)
+// belongs to the BOT USER itself and is therefore GLOBAL across every server
+// at once - Discord offers no way to set it differently per server. See
+// commands-presence.js for the full reasoning on who is allowed to touch it.
+// The "automatic" mode instead shows the current server count and refreshes
+// itself sparingly.
 
 const { ActivityType, PresenceUpdateStatus } = require('discord.js');
 const storage = require('./storage');
@@ -22,36 +21,59 @@ const STATUS_MAP = {
 };
 const ACTIVITY_TYPE_MAP = { playing: ActivityType.Playing, watching: ActivityType.Watching, listening: ActivityType.Listening };
 
+const MAX_HISTORY = 10;
+
 function getConfig() {
-  return storage.getMeta('presence') || { mode: 'auto' };
+  return storage.getMeta('presence') || { mode: 'auto', history: [] };
+}
+
+function pushHistory(cfg, entry) {
+  const history = Array.isArray(cfg.history) ? cfg.history : [];
+  history.unshift({ ...entry, at: Date.now() });
+  return history.slice(0, MAX_HISTORY);
 }
 
 function setConfig(cfg) {
   storage.setMeta('presence', cfg);
 }
 
-// Setzt den Modus zurück auf "automatisch zeigt die Serveranzahl".
+// Switches back to "automatic - shows the current server count".
 function setAuto(setBy) {
-  setConfig({ mode: 'auto', setBy, setAt: Date.now() });
+  const cfg = getConfig();
+  setConfig({ mode: 'auto', setBy, setAt: Date.now(), history: pushHistory(cfg, { action: 'auto', by: setBy }) });
 }
 
-function setManualStatus(status, setBy) {
-  const cfg = { ...getConfig(), mode: 'manual', status, setBy, setAt: Date.now() };
-  delete cfg.activity;
-  delete cfg.streaming;
-  setConfig(cfg);
+// Sets status (online/idle/dnd/invisible) and, optionally, a custom activity
+// or streaming link in one go. Passing null for a field clears it.
+function setManual({ status, activityType, activityText, streamingUrl, setBy }) {
+  const cfg = getConfig();
+  const next = { ...cfg, mode: 'manual', setBy, setAt: Date.now() };
+  if (status) next.status = status;
+  if (streamingUrl) {
+    next.streaming = { url: streamingUrl };
+    delete next.activity;
+  } else if (activityType && activityText) {
+    next.activity = { type: activityType, text: activityText };
+    delete next.streaming;
+  }
+  next.history = pushHistory(cfg, { action: 'set', by: setBy, status, activityType, activityText, streamingUrl });
+  setConfig(next);
+  return next;
 }
 
-function setManualActivity(type, text, setBy) {
-  setConfig({ ...getConfig(), mode: 'manual', activity: { type, text }, setBy, setAt: Date.now() });
+// Keeps the current status but removes any custom activity/streaming link.
+function clearActivity(setBy) {
+  const cfg = getConfig();
+  const next = { ...cfg, mode: 'manual', setBy, setAt: Date.now() };
+  delete next.activity;
+  delete next.streaming;
+  next.history = pushHistory(cfg, { action: 'clear-activity', by: setBy });
+  setConfig(next);
+  return next;
 }
 
-function setManualStreaming(url, setBy) {
-  setConfig({ ...getConfig(), mode: 'manual', streaming: { url }, status: 'online', setBy, setAt: Date.now() });
-}
-
-// Wendet die aktuell gespeicherte Konfiguration auf den Discord-Client an.
-// Wird beim Start, regelmäßig (Auto-Modus) und nach jeder Änderung aufgerufen.
+// Applies the currently stored configuration to the Discord client. Called
+// on startup, periodically (in automatic mode), and after every change.
 async function apply(client) {
   try {
     const cfg = getConfig();
@@ -60,7 +82,7 @@ async function apply(client) {
     if (cfg.mode !== 'manual') {
       client.user.setPresence({
         status: PresenceUpdateStatus.Online,
-        activities: [{ name: `${guildCount} Server`, type: ActivityType.Watching }],
+        activities: [{ name: `${guildCount} servers`, type: ActivityType.Watching }],
       });
       return;
     }
@@ -82,8 +104,8 @@ async function apply(client) {
     }
     client.user.setPresence({ status, activities: [] });
   } catch (err) {
-    console.warn('Presence konnte nicht gesetzt werden:', errText(err));
+    console.warn('Could not set presence:', errText(err));
   }
 }
 
-module.exports = { getConfig, setAuto, setManualStatus, setManualActivity, setManualStreaming, apply, STATUS_MAP, ACTIVITY_TYPE_MAP };
+module.exports = { getConfig, setAuto, setManual, clearActivity, apply, STATUS_MAP, ACTIVITY_TYPE_MAP, MAX_HISTORY };

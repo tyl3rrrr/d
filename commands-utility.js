@@ -6,12 +6,12 @@ const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 const userinfo = {
   data: new SlashCommandBuilder()
     .setName('userinfo')
-    .setDescription('Zeigt Infos zu einem Server-Mitglied')
-    .addUserOption((opt) => opt.setName('user').setDescription('Das Mitglied (Standard: du selbst)').setRequired(false)),
+    .setDescription('Shows info about a server member')
+    .addUserOption((opt) => opt.setName('user').setDescription('The member (default: yourself)').setRequired(false)),
 
   async execute(interaction) {
-    // Funktioniert auch per User-Install (DMs / Server ohne den Bot): dann gibt es
-    // kein Server-Mitglied, und es werden nur die Account-Infos angezeigt.
+    // Also works via user install (DMs / servers without the bot): then there is
+    // no server member, and only the account info is shown.
     const member = interaction.options.getMember('user') || (interaction.options.getUser('user') ? null : interaction.member);
     const user = interaction.options.getUser('user') || interaction.user;
     const hasMember = Boolean(member && member.roles && member.roles.cache);
@@ -22,19 +22,19 @@ const userinfo = {
       .setThumbnail(user.displayAvatarURL({ size: 256 }))
       .addFields(
         { name: 'ID', value: user.id, inline: true },
-        { name: 'Bot?', value: user.bot ? 'Ja' : 'Nein', inline: true },
-        { name: 'Account erstellt', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`, inline: true }
+        { name: 'Bot?', value: user.bot ? 'Yes' : 'No', inline: true },
+        { name: 'Account created', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`, inline: true }
       );
 
     if (hasMember && interaction.guild) {
       const roles = member.roles.cache.filter((r) => r.id !== interaction.guild.id).map((r) => `<@&${r.id}>`);
       embed.addFields(
         {
-          name: 'Server beigetreten',
-          value: member.joinedTimestamp ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` : 'Unbekannt',
+          name: 'Joined server',
+          value: member.joinedTimestamp ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` : 'Unknown',
           inline: true,
         },
-        { name: `Rollen (${roles.length})`, value: roles.length > 0 ? roles.join(', ').slice(0, 1000) : 'Keine' }
+        { name: `Roles (${roles.length})`, value: roles.length > 0 ? roles.join(', ').slice(0, 1000) : 'None' }
       );
     }
 
@@ -43,7 +43,7 @@ const userinfo = {
 };
 
 const serverinfo = {
-  data: new SlashCommandBuilder().setName('serverinfo').setDescription('Zeigt Infos zu diesem Server'),
+  data: new SlashCommandBuilder().setName('serverinfo').setDescription('Shows info about this server'),
 
   async execute(interaction) {
     const guild = interaction.guild;
@@ -56,9 +56,9 @@ const serverinfo = {
       .addFields(
         { name: 'ID', value: guild.id, inline: true },
         { name: 'Owner', value: `<@${guild.ownerId}>`, inline: true },
-        { name: 'Mitglieder', value: String(guild.memberCount), inline: true },
-        { name: 'Erstellt', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
-        { name: 'Boost-Level', value: String(guild.premiumTier ?? 0), inline: true },
+        { name: 'Members', value: String(guild.memberCount), inline: true },
+        { name: 'Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
+        { name: 'Boost level', value: String(guild.premiumTier ?? 0), inline: true },
         { name: 'Boosts', value: String(guild.premiumSubscriptionCount ?? 0), inline: true }
       );
 
@@ -69,13 +69,13 @@ const serverinfo = {
 const avatar = {
   data: new SlashCommandBuilder()
     .setName('avatar')
-    .setDescription('Zeigt das Profilbild eines Nutzers in groß')
-    .addUserOption((opt) => opt.setName('user').setDescription('Der Nutzer (Standard: du selbst)').setRequired(false)),
+    .setDescription("Shows a user's profile picture in large size")
+    .addUserOption((opt) => opt.setName('user').setDescription('The user (default: yourself)').setRequired(false)),
 
   async execute(interaction) {
     const user = interaction.options.getUser('user') || interaction.user;
     const embed = new EmbedBuilder()
-      .setTitle(`🖼️ Avatar von ${user.tag}`)
+      .setTitle(`🖼️ Avatar of ${user.tag}`)
       .setColor(0x5865f2)
       .setImage(user.displayAvatarURL({ size: 1024 }));
     await interaction.reply({ embeds: [embed] });
@@ -85,16 +85,16 @@ const avatar = {
 const poll = {
   data: new SlashCommandBuilder()
     .setName('poll')
-    .setDescription('Erstellt eine einfache Abstimmung mit Reaktionen')
-    .addStringOption((opt) => opt.setName('frage').setDescription('Die Abstimmungsfrage').setRequired(true))
-    .addStringOption((opt) => opt.setName('option1').setDescription('Antwortoption 1').setRequired(true))
-    .addStringOption((opt) => opt.setName('option2').setDescription('Antwortoption 2').setRequired(true))
-    .addStringOption((opt) => opt.setName('option3').setDescription('Antwortoption 3').setRequired(false))
-    .addStringOption((opt) => opt.setName('option4').setDescription('Antwortoption 4').setRequired(false))
-    .addStringOption((opt) => opt.setName('option5').setDescription('Antwortoption 5').setRequired(false)),
+    .setDescription('Creates a simple poll with reactions')
+    .addStringOption((opt) => opt.setName('question').setDescription('The poll question').setRequired(true))
+    .addStringOption((opt) => opt.setName('option1').setDescription('Answer option 1').setRequired(true))
+    .addStringOption((opt) => opt.setName('option2').setDescription('Answer option 2').setRequired(true))
+    .addStringOption((opt) => opt.setName('option3').setDescription('Answer option 3').setRequired(false))
+    .addStringOption((opt) => opt.setName('option4').setDescription('Answer option 4').setRequired(false))
+    .addStringOption((opt) => opt.setName('option5').setDescription('Answer option 5').setRequired(false)),
 
   async execute(interaction) {
-    const question = interaction.options.getString('frage');
+    const question = interaction.options.getString('question');
     const options = [1, 2, 3, 4, 5]
       .map((i) => interaction.options.getString(`option${i}`))
       .filter(Boolean);
@@ -105,7 +105,7 @@ const poll = {
       .setTitle(`📊 ${question}`)
       .setDescription(description)
       .setColor(0x5865f2)
-      .setFooter({ text: `Erstellt von ${interaction.user.tag}` });
+      .setFooter({ text: `Created by ${interaction.user.tag}` });
 
     await interaction.reply({ embeds: [embed] });
     const message = await interaction.fetchReply();
