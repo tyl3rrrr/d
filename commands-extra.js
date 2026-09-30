@@ -1,5 +1,6 @@
 // commands-extra.js
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const storage = require('./storage');
 const { canManageRole, canModerate } = require('./permissions');
 const { EPHEMERAL, isMissingPermError } = require('./util');
 const logging = require('./logging');
@@ -53,14 +54,56 @@ const remindme = {
   },
 };
 
+const SUGGEST_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes to type the suggestion
+
 const suggest = {
-  data: new SlashCommandBuilder()
-    .setName('suggest')
-    .setDescription('Posts a suggestion in this channel (with voting reactions)')
-    .addStringOption((opt) => opt.setName('suggestion').setDescription('Your suggestion').setRequired(true)),
+  data: new SlashCommandBuilder().setName('suggest').setDescription('Prompts you for a suggestion and forwards it to the configured channel'),
 
   async execute(interaction) {
-    const text = interaction.options.getString('suggestion');
+    const guildId = interaction.guildId;
+    const settings = storage.getGuildSettings(guildId);
+    if (!settings.suggestChannelId) {
+      await interaction.reply({ content: '❌ No suggestions channel has been set yet. Ask an admin to run `/config suggest`.', flags: EPHEMERAL });
+      return;
+    }
+    const targetChannel = interaction.guild.channels.cache.get(settings.suggestChannelId);
+    if (!targetChannel || !targetChannel.isTextBased()) {
+      await interaction.reply({ content: '❌ The configured suggestions channel no longer exists. Ask an admin to set it again.', flags: EPHEMERAL });
+      return;
+    }
+
+    // Ephemeral so the prompt (and the fact this command was even used) is
+    // only visible to the person running it - Discord hides the whole "used
+    // /suggest" notice from everyone else for ephemeral responses.
+    await interaction.reply({
+      content: `💡 What do you want to suggest? Reply **in this channel** within ${SUGGEST_TIMEOUT_MS / 60000} minutes.`,
+      flags: EPHEMERAL,
+    });
+
+    let collected;
+    try {
+      collected = await interaction.channel.awaitMessages({
+        filter: (m) => m.author.id === interaction.user.id,
+        max: 1,
+        time: SUGGEST_TIMEOUT_MS,
+      });
+    } catch (err) {
+      collected = null;
+    }
+
+    if (!collected || collected.size === 0) {
+      await interaction.followUp({ content: '⌛ Timed out - run `/suggest` again when you\'re ready.', flags: EPHEMERAL });
+      return;
+    }
+
+    const answer = collected.first();
+    const text = answer.content;
+
+    // Delete the user's answer message to keep the channel clean - this is
+    // a normal guild message the bot can remove (unlike a DM, where bots
+    // have no permission to delete anything a user sent).
+    await answer.delete().catch((err) => console.warn('Could not delete the /suggest answer message:', err.message));
+
     const embed = new EmbedBuilder()
       .setTitle('💡 New Suggestion')
       .setDescription(text)
@@ -68,10 +111,14 @@ const suggest = {
       .setFooter({ text: `Suggested by ${interaction.user.tag}` })
       .setTimestamp();
 
-    await interaction.reply({ embeds: [embed] });
-    const message = await interaction.fetchReply();
-    await message.react('👍').catch(() => {});
-    await message.react('👎').catch(() => {});
+    try {
+      const posted = await targetChannel.send({ embeds: [embed] });
+      await posted.react('👍').catch(() => {});
+      await posted.react('👎').catch(() => {});
+      await interaction.user.send('Your suggestion has been sent!').catch(() => {});
+    } catch (err) {
+      await interaction.followUp({ content: `❌ Could not post your suggestion: ${err.message}`, flags: EPHEMERAL });
+    }
   },
 };
 

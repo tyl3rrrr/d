@@ -32,6 +32,9 @@ because everything is validated locally first.
 
 ## 2. Discord Developer Portal - required settings
 
+- **Not a Discord setting, but required for `/ytnotify`:** a free Google
+  Cloud API key with "YouTube Data API v3" enabled, set as `YOUTUBE_API_KEY`
+  in `.env` - see `.env.template`.
 - **Bot -> Privileged Gateway Intents:**
   - `SERVER MEMBERS INTENT` - for the welcome system (new members).
   - `MESSAGE CONTENT INTENT` - for the `!support` text command.
@@ -61,6 +64,8 @@ because everything is validated locally first.
 | `logging.js` | Central logging into the channel set via `/settings log-channel`. |
 | `xp.js` / `xp-runtime.js` | XP/level curve and runtime logic (message XP, level roles, leaderboard updates), respectively. |
 | `presence.js` | Bot online status (bot-wide, see the limitation below). |
+| `apply-runtime.js` | DM-interview state machine and Accept/Deny button logic for the applications system (see `commands-apply.js`). |
+| `youtube.js` | YouTube Data API calls (search, uploads-playlist lookup) and the upload-notification poller (see `commands-ytnotify.js`). |
 
 ## 4. Fixes made after your test feedback (this round)
 
@@ -127,7 +132,90 @@ choice list:
 original brief that this one specific ID must be able to configure presence
 directly.
 
-## 6. Implemented points (brief, items 1-17)
+## 6. New features (this round)
+
+### `/ticket-panel` no longer shows "used /ticket-panel" publicly
+Discord's ephemeral responses hide the entire interaction notice (not just
+the reply content) from everyone except the person who ran the command.
+`/ticket-panel` (and the new `/apply-panel`, see below) now reply
+ephemerally with a short confirmation, then post the actual panel as a
+plain channel message - so it looks exactly like a normal bot post, with no
+visible "@user used /command" trace for anyone else.
+
+### Applications ("apply") system
+A full application/recruitment flow, entirely new:
+- `/apply-config` (admin) configures up to 5 application types (e.g.
+  Developer/Moderator/Administrator) - `add-type`, `remove-type`,
+  `add-question`/`remove-question` (up to 15 questions per type, asked in
+  order), `set-role` (an optional role granted automatically on acceptance),
+  `set-review-channel` (where submissions are posted), and `list`. The
+  `type` option has autocomplete, so you don't have to retype exact names.
+- `/apply-panel` (admin) posts a panel with one button per configured type
+  (ephemeral confirmation + plain channel message, see above).
+- Clicking a button DMs the applicant the first question; each reply in
+  that DM is recorded and the next question follows, until all are
+  answered. The bot then DMs "Your application will be reviewed as soon as
+  possible" and posts the full Q&A as an embed with **Accept**/**Deny**
+  buttons in the review channel.
+- Only moderators/admins can press Accept/Deny. Doing so edits the embed to
+  show the decision and reviewer, DMs the applicant the result, and (on
+  acceptance) grants the configured role if one was set. Everything is
+  logged to the log channel.
+- Submitted applications are saved to `data.json` and survive a restart;
+  an **in-progress** interview (questions asked but not yet all answered)
+  lives only in memory and is lost on restart, the same trade-off as
+  `/remindme`. An abandoned interview also auto-cancels after 30 minutes of
+  inactivity, with a DM saying so.
+- Needs the (non-privileged) `DirectMessages` gateway intent to receive the
+  applicant's DM replies - already added in `index.js`, no Developer Portal
+  toggle required. DM content is available regardless of the privileged
+  Message Content Intent (that one only restricts guild messages), so this
+  works under every intent fallback plan.
+
+### `/ytnotify` - YouTube upload notifications
+- `/ytnotify add name:<search text> notify-channel:<#channel>` (mod+)
+  searches YouTube by name via the Data API, then shows up to 5 matches in
+  a dropdown so you can pick the exact channel (name search alone is often
+  ambiguous). On selection, the channel's current latest video is stored as
+  a baseline - only uploads *after* that point trigger a notification (so
+  adding a channel never dumps its entire back catalog into the channel).
+- `/ytnotify remove` (autocomplete over currently tracked channels) and
+  `/ytnotify list`.
+- A background poller checks every 10 minutes for a new upload per tracked
+  channel and posts a message with the title and link when one appears.
+  It always uses the cheap `playlistItems.list` endpoint (1 quota unit) for
+  polling - the more expensive `search.list` (100 units) is only used once,
+  when an admin runs `/ytnotify add`.
+- Requires `YOUTUBE_API_KEY` in `.env` (a free Google Cloud API key with
+  "YouTube Data API v3" enabled). Without it, `/ytnotify` explains what's
+  missing instead of silently doing nothing.
+
+### `/suggest` reworked into a prompt-and-collect flow
+Running `/suggest` (no options anymore) replies ephemerally asking "What do
+you want to suggest?" - your next message in that channel (within 5
+minutes) is captured, forwarded as an embed to the channel configured via
+`/config suggest`, and then deleted (keeping the channel clean, since it
+was just a prompt/response exchange). You get a DM confirming "Your
+suggestion has been sent!". A DM-based prompt/answer couldn't satisfy the
+"delete the message afterward" part of the request - bots have no
+permission to delete messages other users sent in a DM - so this uses an
+in-channel exchange instead, where deleting is possible.
+
+### `/config suggest`
+A small, separate settings command (as requested, distinct from
+`/settings`) that sets the channel `/suggest` posts to. Built as its own
+command/file so more `/config <topic>` subcommands can be added later
+without growing `/settings`.
+
+### Welcome DM text updated
+The default DM sent to new members is now: *"Hello {user}, enjoy your time
+on **{server}**! Be respectful and nice!"* - matching the wording you asked
+for. The public channel message's default was already exactly *"Welcome to
+the Server {user}! You are Member Number {number}"* and is unchanged.
+`{user}` renders as an `@mention`, which is what actually displays as
+"@username" in Discord's client.
+
+## 7. Implemented points (brief, items 1-17)
 
 ### 1) `/appearence` - appearance
 Reference image was **IMG_2347** (bot profile card: avatar, green online
@@ -282,21 +370,23 @@ server's values. The global leaderboard is built purely by reading and
 aggregating these separate per-server datasets (`storage.getGlobalLeaderboard`),
 never changing a single server's values.
 
-## 7. Command overview
+## 8. Command overview
 
 | Category | Commands |
 |---|---|
 | General | `/antimdm` `/web` `/uptime` `/status` `/changelog` `/links` `/botinfo` `/ping` `/help` |
 | Moderation (mod+) | `/kick` `/ban` `/timeout` `/warn` `/clear` `/slowmode` `/lock` `/unlock` `/nickname` `/role` `/purge-user` `/say` |
-| Administration (admin) | `/settings` `/automod-words` `/automod setup\|status\|remove` `/appearence nickname\|profile\|color` `/adm-reload` |
+| Administration (admin) | `/settings` `/config suggest` `/automod-words` `/automod setup\|status\|remove` `/appearence nickname\|profile\|color` `/adm-reload` |
 | Bot owner/superuser | `/reload` (owner) `/bot-status` (owner) `/automod setup-all` (owner) `/bstatnow` (superuser ID only) |
 | Welcome | `/welcome-setup` |
+| Applications | `/apply-config` (admin) `/apply-panel` (admin) (+ apply/Accept/Deny buttons) |
+| YouTube | `/ytnotify add\|remove\|list` (mod+) |
 | Tickets | `/ticket-panel` (+ "Create Ticket"/"Close" buttons) |
 | XP | `/xp-board` (admin) `/xp-set` (superuser ID only) `/xp-stats` `/xp-global` |
 | Utility/fun | `/userinfo` `/serverinfo` `/avatar` `/poll` `/remindme` `/suggest` `/coinflip` `/dice` `/8ball` `/membercount` `/roleinfo` |
 | Text command | `!support <request>`, `!support config` |
 
-## 8. Required dependencies
+## 9. Required dependencies
 
 ```json
 "discord.js": "^14.16.3",
@@ -304,12 +394,12 @@ never changing a single server's values.
 ```
 Nothing else - no database drivers, no extra packages.
 
-## 9. Required `.env` variables
+## 10. Required `.env` variables
 
 See `.env.template` (a copyable starting point). Only `DISCORD_TOKEN` is
 required; everything else has a sensible default or is optional.
 
-## 10. Database
+## 11. Database
 
 A single `data.json` file in the folder (created automatically on first
 start, listed in `.gitignore`). Contains: `guilds` (per-server settings),
@@ -317,7 +407,7 @@ start, listed in `.gitignore`). Contains: `guilds` (per-server settings),
 presence configuration). Writes atomically and automatically backs up the
 file if it's ever corrupted (`data.json.corrupt-*`) instead of losing data.
 
-## 11. How to start the bot
+## 12. How to start the bot
 
 ```bash
 npm install
@@ -331,7 +421,7 @@ npm install -g pm2
 pm2 start index.js --name tylxrrrr-bot --max-memory-restart 1536M
 ```
 
-## 12. Known limitations (technically justified, see details above)
+## 13. Known limitations (technically justified, see details above)
 
 - Bot presence is identical across every server at once (sections 5/10/11).
 - A server invite that's "permanent forever" can't be guaranteed, only the
@@ -345,16 +435,39 @@ pm2 start index.js --name tylxrrrr-bot --max-memory-restart 1536M
 - If the privileged intents (Developer Portal) are missing, the welcome
   system and `!support` start automatically disabled instead of blocking
   the bot from starting - and `/welcome-setup` warns about this directly.
+- An in-progress application interview (some but not all questions
+  answered) lives only in memory and is lost on a bot restart - a
+  submitted/completed application is always saved and survives restarts.
+- `/ytnotify` depends on the YouTube Data API's daily quota (10,000 units
+  by default); with very many tracked channels across many servers, the
+  10-minute polling interval could theoretically be tuned down if quota
+  ever became a problem, but the default should comfortably cover normal use.
+- `/suggest`'s "reply within 5 minutes" step is a live Discord message
+  collector - it does not survive a bot restart either, the same trade-off
+  as `/remindme`.
 
-## 13. Tests performed
+## 14. Tests performed
 
 - Every `.js` file checked with `node --check` for syntax errors.
 - The complete command registry (`commands.js`) loaded offline against a
-  Discord API simulation: all 46 commands serialize to JSON without errors,
-  no duplicate names, no invalid (upper/lowercase) names - exactly the
-  error class that previously caused a crash is ruled out.
+  Discord API simulation: all 50 commands (including the new `/apply-config`,
+  `/apply-panel`, `/ytnotify`, `/config`) serialize to JSON without errors,
+  no duplicate names, no invalid (upper/lowercase) names, and autocomplete
+  is correctly attached to `/apply-config` and `/ytnotify`.
 - `command-tools.validatePayload` ran against the real, complete payload:
   0 errors.
+- The full `index.js` startup path (requires, client construction with the
+  new `DirectMessages` intent, event wiring) was run end-to-end against a
+  Discord API simulation up to the actual `login()` call (which can't be
+  tested without real network access here).
+- **The application system's DM interview was simulated end-to-end**:
+  starting an application, answering both configured questions via
+  simulated DM messages, and confirming the bot sends the next question
+  each time and finally posts the completed application (as an embed with
+  Accept/Deny buttons) to the review channel.
+- `storage.js`'s new application functions (`addApplication`,
+  `getApplication`, `updateApplication`, `getApplyTypes`/`setApplyTypes`)
+  were verified with test data, including status updates.
 - **`/automod setup`'s reset-then-create flow was tested against a mock
   that enforces Discord's real per-type rule limits**, reproducing the
   exact reported scenario (all 5 rule types already at their maximum, from

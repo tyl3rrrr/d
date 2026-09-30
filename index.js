@@ -21,6 +21,8 @@ const permissions = require('./permissions');
 const { handleMemberAdd } = require('./commands-welcome');
 const presence = require('./presence');
 const xpRuntime = require('./xp-runtime');
+const applyRuntime = require('./apply-runtime');
+const youtube = require('./youtube');
 const logging = require('./logging');
 const { EPHEMERAL, errText } = require('./util');
 
@@ -109,11 +111,16 @@ if (!DISCORD_TOKEN) {
 // - GuildMessages + MessageContent (PRIVILEGED): for the "!support" text command.
 // - GuildMembers (PRIVILEGED): for the welcome system (new members joining).
 // - AutoModerationExecution: log messages when Discord's AutoMod acts.
+// - DirectMessages: needed to RECEIVE the applicant's answers during an
+//   application interview (see apply-runtime.js). This is NOT privileged and
+//   needs no Developer Portal toggle. Message CONTENT in DMs is available
+//   regardless of the (privileged) Message Content Intent - that one only
+//   gates content in GUILD messages - so application interviews work under
+//   every intent plan below.
 // Both privileged intents must be enabled in the Developer Portal under "Bot" ->
 // "Privileged Gateway Intents". If one is NOT enabled, the bot still starts: it
 // automatically retries without the missing intent and reports loudly in the
 // console which feature is disabled as a result.
-// DirectMessages is deliberately NOT requested (the bot doesn't process DMs).
 //
 // RAM optimization: limited caches + sweepers (goal: reliably under 2GB).
 const INTENT_PLANS = [
@@ -123,7 +130,12 @@ const INTENT_PLANS = [
 ];
 
 function createClient(plan) {
-  const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.AutoModerationExecution];
+  const intents = [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.AutoModerationExecution,
+  ];
   if (plan.content) intents.push(GatewayIntentBits.MessageContent);
   if (plan.members) intents.push(GatewayIntentBits.GuildMembers);
 
@@ -190,6 +202,7 @@ function wire(client, plan) {
     // API calls on every small change) - every 10 minutes is enough.
     setInterval(() => presence.apply(readyClient), 10 * 60 * 1000);
     xpRuntime.startBoardScheduler(readyClient);
+    youtube.startPoller(readyClient);
 
     // Auto-sync: makes sure Discord has exactly the commands this code knows
     // (the main cause of "Unknown Command"). AUTO_DEPLOY=false turns it off.
@@ -226,6 +239,14 @@ function wire(client, plan) {
     markInteractionProcessed(interaction.id);
 
     try {
+      if (interaction.isAutocomplete()) {
+        const command = client.commands.get(interaction.commandName);
+        if (command && typeof command.autocomplete === 'function') {
+          await command.autocomplete(interaction).catch((err) => console.warn(`Autocomplete error in /${interaction.commandName}:`, errText(err)));
+        }
+        return;
+      }
+
       if (interaction.isChatInputCommand()) {
         const command = client.commands.get(interaction.commandName);
         if (!command) {
@@ -242,6 +263,15 @@ function wire(client, plan) {
       if (interaction.isButton()) {
         if (interaction.customId === OPEN_BUTTON_ID) return void (await handleOpenTicket(interaction));
         if (interaction.customId === CLOSE_BUTTON_ID) return void (await handleCloseTicket(interaction));
+        if (interaction.customId.startsWith(applyRuntime.START_PREFIX)) {
+          return void (await applyRuntime.handleApplyStart(interaction, interaction.customId.slice(applyRuntime.START_PREFIX.length)));
+        }
+        if (interaction.customId.startsWith(applyRuntime.ACCEPT_PREFIX)) {
+          return void (await applyRuntime.handleReviewButton(interaction, true, interaction.customId.slice(applyRuntime.ACCEPT_PREFIX.length)));
+        }
+        if (interaction.customId.startsWith(applyRuntime.DENY_PREFIX)) {
+          return void (await applyRuntime.handleReviewButton(interaction, false, interaction.customId.slice(applyRuntime.DENY_PREFIX.length)));
+        }
       }
     } catch (error) {
       console.error('Error while processing an interaction:', error);
@@ -253,6 +283,21 @@ function wire(client, plan) {
   });
 
   client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot) return;
+
+    // DMs: message content is available regardless of the Message Content
+    // Intent (that privileged intent only gates GUILD messages) - so an
+    // active application interview always works, even under the most
+    // restrictive intent plan.
+    if (!message.guild) {
+      try {
+        await applyRuntime.handleDMAnswer(message);
+      } catch (error) {
+        console.error('Error while processing a DM application answer:', error);
+      }
+      return;
+    }
+
     try {
       if (plan.content) await legacySupport.handleMessage(message);
     } catch (error) {

@@ -150,7 +150,12 @@ const ticketPanel = {
       new ButtonBuilder().setCustomId(OPEN_BUTTON_ID).setLabel('Create Ticket').setStyle(ButtonStyle.Primary).setEmoji('🎫')
     );
 
-    await interaction.reply({ embeds: [embed], components: [row] });
+    // Reply ephemerally (only the admin who ran the command sees anything - per
+    // Discord, an ephemeral interaction reply hides the whole "used /command"
+    // notice from everyone else too), then post the actual panel as a plain
+    // channel message so it looks like a normal bot post, not a command reply.
+    await interaction.reply({ content: '✅ Panel posted below.', flags: EPHEMERAL });
+    await interaction.channel.send({ embeds: [embed], components: [row] });
   },
 };
 

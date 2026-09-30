@@ -27,7 +27,7 @@ function hasMembersIntent(client) {
 }
 
 const DEFAULT_PUBLIC = 'Welcome to the Server {user}! You are Member Number {number}';
-const DEFAULT_DM = 'Welcome to **{server}**, {username}! You are Member Number {number}';
+const DEFAULT_DM = 'Hello {user}, enjoy your time on **{server}**! Be respectful and nice!';
 
 function render(template, { member, number }) {
   return String(template)

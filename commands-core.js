@@ -175,6 +175,8 @@ const CATEGORY_ORDER = [
   ['moderation', '🛡️ Moderation'],
   ['admin', '⚙️ Administration'],
   ['welcome', '👋 Welcome'],
+  ['apply', '📋 Applications'],
+  ['youtube', '📺 YouTube'],
   ['tickets', '🎫 Tickets'],
   ['utility', '🧰 Utility & Fun'],
   ['xp', '⭐ XP'],

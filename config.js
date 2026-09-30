@@ -84,6 +84,14 @@ const changelog = [
       'fails on a plain single color, /bot-status is now bot-owner only (presence is bot-wide, not per server) ' +
       'and gained view/set/streaming/activity/clear-activity/auto subcommands.',
   },
+  {
+    date: '2026-09-29',
+    text:
+      'v7.3 (part 3): /ticket-panel and /apply-panel no longer show a public "used /command" notice, new ' +
+      'application system (/apply-config, /apply-panel, DM interviews, Accept/Deny review buttons), new ' +
+      '/ytnotify YouTube upload notifications, /suggest reworked into a prompt-and-collect flow with a new ' +
+      '/config suggest channel setting, and an updated default welcome DM text.',
+  },
 ];
 
 function reloadEnv() {

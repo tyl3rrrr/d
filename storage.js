@@ -24,6 +24,8 @@ function defaultData() {
     // XP system: STRICTLY separated per server (guildId -> userId -> { xp, level }).
     // XP on server A therefore has no technical access to or effect on server B.
     xp: {},
+    // guildId -> applicationId -> { id, typeId, typeLabel, userId, userTag, answers, status, reviewerId, createdAt }
+    applications: {},
     meta: {}, // bot-wide metadata (e.g. commandHash for command auto-sync, bot presence)
   };
 }
@@ -188,6 +190,54 @@ function setMeta(key, value) {
   saveData(data);
 }
 
+// ---------------------------------------------------------------------------
+// Applications ("Bewerbungen") - stored per server, isolated the same way as
+// everything else. `guilds[guildId].applyTypes` holds the configured roles you
+// can apply for (label + ordered question list + an optional Discord role to
+// grant on acceptance); `applications[guildId][applicationId]` holds every
+// submitted application (so Accept/Deny buttons keep working across restarts).
+// ---------------------------------------------------------------------------
+function getApplyTypes(guildId) {
+  return data.guilds[guildId]?.applyTypes || [];
+}
+
+function setApplyTypes(guildId, types) {
+  return setGuildSetting(guildId, 'applyTypes', types);
+}
+
+function addApplication(guildId, record) {
+  if (!data.applications) data.applications = {};
+  if (!data.applications[guildId]) data.applications[guildId] = {};
+  const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  data.applications[guildId][id] = { id, status: 'pending', ...record };
+  saveData(data);
+  return data.applications[guildId][id];
+}
+
+function getApplication(guildId, id) {
+  return data.applications?.[guildId]?.[id] || null;
+}
+
+function updateApplication(guildId, id, patch) {
+  if (!data.applications?.[guildId]?.[id]) return null;
+  Object.assign(data.applications[guildId][id], patch);
+  saveData(data);
+  return data.applications[guildId][id];
+}
+
+// ---------------------------------------------------------------------------
+// YouTube upload notifications - tracked creators per server.
+// guilds[guildId].ytNotify = [{ channelId, channelTitle, uploadsPlaylistId,
+//   notifyChannelId, lastVideoId }]
+// ---------------------------------------------------------------------------
+function getYtNotifyList(guildId) {
+  return data.guilds[guildId]?.ytNotify || [];
+}
+
+function setYtNotifyList(guildId, list) {
+  return setGuildSetting(guildId, 'ytNotify', list);
+}
+
 module.exports = {
   getGuildSettings,
   setGuildSetting,
@@ -201,6 +251,13 @@ module.exports = {
   getGuildLeaderboard,
   getGlobalLeaderboard,
   getGlobalRank,
+  getApplyTypes,
+  setApplyTypes,
+  addApplication,
+  getApplication,
+  updateApplication,
+  getYtNotifyList,
+  setYtNotifyList,
   getMeta,
   setMeta,
   reload,
