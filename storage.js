@@ -225,19 +225,6 @@ function updateApplication(guildId, id, patch) {
   return data.applications[guildId][id];
 }
 
-// ---------------------------------------------------------------------------
-// YouTube upload notifications - tracked creators per server.
-// guilds[guildId].ytNotify = [{ channelId, channelTitle, uploadsPlaylistId,
-//   notifyChannelId, lastVideoId }]
-// ---------------------------------------------------------------------------
-function getYtNotifyList(guildId) {
-  return data.guilds[guildId]?.ytNotify || [];
-}
-
-function setYtNotifyList(guildId, list) {
-  return setGuildSetting(guildId, 'ytNotify', list);
-}
-
 module.exports = {
   getGuildSettings,
   setGuildSetting,
@@ -256,8 +243,6 @@ module.exports = {
   addApplication,
   getApplication,
   updateApplication,
-  getYtNotifyList,
-  setYtNotifyList,
   getMeta,
   setMeta,
   reload,

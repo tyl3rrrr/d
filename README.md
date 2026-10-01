@@ -32,9 +32,6 @@ because everything is validated locally first.
 
 ## 2. Discord Developer Portal - required settings
 
-- **Not a Discord setting, but required for `/ytnotify`:** a free Google
-  Cloud API key with "YouTube Data API v3" enabled, set as `YOUTUBE_API_KEY`
-  in `.env` - see `.env.template`.
 - **Bot -> Privileged Gateway Intents:**
   - `SERVER MEMBERS INTENT` - for the welcome system (new members).
   - `MESSAGE CONTENT INTENT` - for the `!support` text command.
@@ -65,7 +62,6 @@ because everything is validated locally first.
 | `xp.js` / `xp-runtime.js` | XP/level curve and runtime logic (message XP, level roles, leaderboard updates), respectively. |
 | `presence.js` | Bot online status (bot-wide, see the limitation below). |
 | `apply-runtime.js` | DM-interview state machine and Accept/Deny button logic for the applications system (see `commands-apply.js`). |
-| `youtube.js` | YouTube Data API calls (search, uploads-playlist lookup) and the upload-notification poller (see `commands-ytnotify.js`). |
 
 ## 4. Fixes made after your test feedback (this round)
 
@@ -171,24 +167,6 @@ A full application/recruitment flow, entirely new:
   toggle required. DM content is available regardless of the privileged
   Message Content Intent (that one only restricts guild messages), so this
   works under every intent fallback plan.
-
-### `/ytnotify` - YouTube upload notifications
-- `/ytnotify add name:<search text> notify-channel:<#channel>` (mod+)
-  searches YouTube by name via the Data API, then shows up to 5 matches in
-  a dropdown so you can pick the exact channel (name search alone is often
-  ambiguous). On selection, the channel's current latest video is stored as
-  a baseline - only uploads *after* that point trigger a notification (so
-  adding a channel never dumps its entire back catalog into the channel).
-- `/ytnotify remove` (autocomplete over currently tracked channels) and
-  `/ytnotify list`.
-- A background poller checks every 10 minutes for a new upload per tracked
-  channel and posts a message with the title and link when one appears.
-  It always uses the cheap `playlistItems.list` endpoint (1 quota unit) for
-  polling - the more expensive `search.list` (100 units) is only used once,
-  when an admin runs `/ytnotify add`.
-- Requires `YOUTUBE_API_KEY` in `.env` (a free Google Cloud API key with
-  "YouTube Data API v3" enabled). Without it, `/ytnotify` explains what's
-  missing instead of silently doing nothing.
 
 ### `/suggest` reworked into a prompt-and-collect flow
 Running `/suggest` (no options anymore) replies ephemerally asking "What do
@@ -380,7 +358,6 @@ never changing a single server's values.
 | Bot owner/superuser | `/reload` (owner) `/bot-status` (owner) `/automod setup-all` (owner) `/bstatnow` (superuser ID only) |
 | Welcome | `/welcome-setup` |
 | Applications | `/apply-config` (admin) `/apply-panel` (admin) (+ apply/Accept/Deny buttons) |
-| YouTube | `/ytnotify add\|remove\|list` (mod+) |
 | Tickets | `/ticket-panel` (+ "Create Ticket"/"Close" buttons) |
 | XP | `/xp-board` (admin) `/xp-set` (superuser ID only) `/xp-stats` `/xp-global` |
 | Utility/fun | `/userinfo` `/serverinfo` `/avatar` `/poll` `/remindme` `/suggest` `/coinflip` `/dice` `/8ball` `/membercount` `/roleinfo` |
@@ -438,10 +415,6 @@ pm2 start index.js --name tylxrrrr-bot --max-memory-restart 1536M
 - An in-progress application interview (some but not all questions
   answered) lives only in memory and is lost on a bot restart - a
   submitted/completed application is always saved and survives restarts.
-- `/ytnotify` depends on the YouTube Data API's daily quota (10,000 units
-  by default); with very many tracked channels across many servers, the
-  10-minute polling interval could theoretically be tuned down if quota
-  ever became a problem, but the default should comfortably cover normal use.
 - `/suggest`'s "reply within 5 minutes" step is a live Discord message
   collector - it does not survive a bot restart either, the same trade-off
   as `/remindme`.
@@ -450,10 +423,10 @@ pm2 start index.js --name tylxrrrr-bot --max-memory-restart 1536M
 
 - Every `.js` file checked with `node --check` for syntax errors.
 - The complete command registry (`commands.js`) loaded offline against a
-  Discord API simulation: all 50 commands (including the new `/apply-config`,
-  `/apply-panel`, `/ytnotify`, `/config`) serialize to JSON without errors,
-  no duplicate names, no invalid (upper/lowercase) names, and autocomplete
-  is correctly attached to `/apply-config` and `/ytnotify`.
+  Discord API simulation: every command (including `/apply-config`,
+  `/apply-panel`, `/config`) serializes to JSON without errors, no duplicate
+  names, no invalid (upper/lowercase) names, and autocomplete is correctly
+  attached to `/apply-config`.
 - `command-tools.validatePayload` ran against the real, complete payload:
   0 errors.
 - The full `index.js` startup path (requires, client construction with the

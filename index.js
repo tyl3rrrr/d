@@ -22,7 +22,6 @@ const { handleMemberAdd } = require('./commands-welcome');
 const presence = require('./presence');
 const xpRuntime = require('./xp-runtime');
 const applyRuntime = require('./apply-runtime');
-const youtube = require('./youtube');
 const logging = require('./logging');
 const { EPHEMERAL, errText } = require('./util');
 
@@ -202,7 +201,6 @@ function wire(client, plan) {
     // API calls on every small change) - every 10 minutes is enough.
     setInterval(() => presence.apply(readyClient), 10 * 60 * 1000);
     xpRuntime.startBoardScheduler(readyClient);
-    youtube.startPoller(readyClient);
 
     // Auto-sync: makes sure Discord has exactly the commands this code knows
     // (the main cause of "Unknown Command"). AUTO_DEPLOY=false turns it off.
@@ -250,8 +248,18 @@ function wire(client, plan) {
       if (interaction.isChatInputCommand()) {
         const command = client.commands.get(interaction.commandName);
         if (!command) {
-          console.warn(`Unknown command invoked: /${interaction.commandName} (registration at Discord out of date? -> npm run deploy)`);
-          await interaction.reply({ content: 'Unknown command.', flags: EPHEMERAL }).catch(() => {});
+          console.warn(
+            `Unknown command invoked: /${interaction.commandName} - this command is registered at Discord but not in ` +
+              `this running process's command list. This almost always means the bot's FILES were updated/deployed ` +
+              `but the PROCESS itself was never restarted (editing files or running "npm run deploy" alone does NOT ` +
+              `reload already-running code - only an actual process restart does, e.g. "npm start" again or /adm-reload).`
+          );
+          await interaction.reply({
+            content:
+              '❌ Unknown command. If this command should exist, the bot process most likely needs a full restart ' +
+              '(not just a redeploy) to pick up new code - ask the bot operator to restart it (e.g. `/adm-reload`).',
+            flags: EPHEMERAL,
+          }).catch(() => {});
           return;
         }
         // CENTRAL permission check (permissions.js) - before EVERY command.

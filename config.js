@@ -92,6 +92,13 @@ const changelog = [
       '/ytnotify YouTube upload notifications, /suggest reworked into a prompt-and-collect flow with a new ' +
       '/config suggest channel setting, and an updated default welcome DM text.',
   },
+  {
+    date: '2026-09-30',
+    text:
+      'v7.4 (part 4): removed the YouTube notification feature (/ytnotify, youtube.js) entirely, and the ' +
+      '"Unknown Command" message now explains the real cause (the bot process needs a full restart after a ' +
+      'file update or deploy - editing files or running "npm run deploy" alone does not reload running code).',
+  },
 ];
 
 function reloadEnv() {

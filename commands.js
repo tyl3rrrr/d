@@ -25,7 +25,6 @@ const { admReload } = require('./commands-admin');
 const { botStatus, bstatnow } = require('./commands-presence');
 const { xpBoard, xpSet, xpStats, xpGlobal } = require('./commands-xp');
 const { applyConfig, applyPanel } = require('./commands-apply');
-const { ytnotify } = require('./commands-ytnotify');
 const { config } = require('./commands-config');
 
 const help = core.buildHelpCommand(() => allCommands);
@@ -74,8 +73,6 @@ const registry = [
   [applyConfig, { category: 'apply', access: 'admin', scope: 'guild' }],
   [applyPanel, { category: 'apply', access: 'admin', scope: 'guild' }],
 
-  // YouTube
-  [ytnotify, { category: 'youtube', access: 'mod', scope: 'guild' }],
 
   // XP
   [xpBoard, { category: 'xp', access: 'admin', scope: 'guild' }],
