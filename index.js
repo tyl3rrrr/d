@@ -201,6 +201,7 @@ function wire(client, plan) {
     // API calls on every small change) - every 10 minutes is enough.
     setInterval(() => presence.apply(readyClient), 10 * 60 * 1000);
     xpRuntime.startBoardScheduler(readyClient);
+    require('./dashboard-server').start(readyClient); // web dashboard (needs DASHBOARD_* in .env)
 
     // Auto-sync: makes sure Discord has exactly the commands this code knows
     // (the main cause of "Unknown Command"). AUTO_DEPLOY=false turns it off.
