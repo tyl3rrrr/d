@@ -193,6 +193,39 @@ the Server {user}! You are Member Number {number}"* and is unchanged.
 `{user}` renders as an `@mention`, which is what actually displays as
 "@username" in Discord's client.
 
+## v7.5 - MacRumors feed, DM tickets, /settings panel
+
+### MacRumors news (`/config macrumors [channel]`)
+Moderators and administrators pick a text channel; leave `channel` empty to turn it off. The bot reads the
+official feed (`https://feeds.macrumors.com/MacRumors-All`) every 10 minutes and posts every NEW article as
+an embed (title, link, ~700-character excerpt, image). New articles are recognised by their GUID, not by the
+publication date (MacRumors' feed has had wrong dates before); the last 200 IDs are stored in `data.json`.
+On the very first start the current feed is only remembered, so nothing floods your channels; setting a
+channel posts the newest article once as a test. Optional `.env`: `MACRUMORS_FEED_URL`,
+`MACRUMORS_INTERVAL_MIN` (minimum 2). Code: `macrumors.js`.
+
+### Tickets without channels (`ticket-runtime.js`)
+1. `/ticket` (or the panel button, or `!support`) - the answer is ephemeral, so nothing stays visible in the
+   channel. (Discord does not let bots delete slash-command invocations; ephemeral replies are the equivalent.)
+2. The bot DMs: "What do you need help with? Type /ticket-close to close this ticket".
+3. The user's next DM is the whole ticket: text and files are forwarded as ONE message to the ticket channel,
+   the ticket role is pinged, and the user gets "We informed our Staff! Help is in the Way!".
+4. `/ticket-close` (slash command or plain text) in the DM answers "Cancelled Ticket".
+
+Ticket or something else? A DM only counts as a ticket if that user has an open ticket session (stored in
+`data.json`, valid for 30 minutes, survives restarts). Every other DM goes to the application interview
+handler. A user cannot have both open at once (both start paths check each other). Files are re-uploaded
+(Discord DM links expire); files over the server's upload limit are linked instead.
+`!support <text>` sends a ticket directly (the message is deleted, needs Manage Messages).
+Old ticket channels from earlier versions keep their working "Close Ticket" button.
+
+### `/settings` is now one panel
+`/settings` opens a private panel: pick a setting from the menu, then pick the role/channel from Discord's own
+selector. Settings: administrator role, moderator role, ticket role, ticket channel, log channel, suggestions
+channel, XP leaderboard channel, MacRumors channel, application review channel, welcome channel/role/DM.
+The old subcommands (`/settings admin-role`, `/settings log-channel`, ...) are gone; the ticket category
+setting is no longer used. Everything is logged to the log channel like before.
+
 ## 7. Implemented points (brief, items 1-17)
 
 ### 1) `/appearence` - appearance
@@ -354,14 +387,14 @@ never changing a single server's values.
 |---|---|
 | General | `/antimdm` `/web` `/uptime` `/status` `/changelog` `/links` `/botinfo` `/ping` `/help` |
 | Moderation (mod+) | `/kick` `/ban` `/timeout` `/warn` `/clear` `/slowmode` `/lock` `/unlock` `/nickname` `/role` `/purge-user` `/say` |
-| Administration (admin) | `/settings` `/config suggest` `/automod-words` `/automod setup\|status\|remove` `/appearence nickname\|profile\|color` `/adm-reload` |
+| Administration (admin) | `/settings` (panel) `/config suggest` `/config macrumors` (mod+) `/automod-words` `/automod setup\|status\|remove` `/appearence nickname\|profile\|color` `/adm-reload` |
 | Bot owner/superuser | `/reload` (owner) `/bot-status` (owner) `/automod setup-all` (owner) `/bstatnow` (superuser ID only) |
 | Welcome | `/welcome-setup` |
 | Applications | `/apply-config` (admin) `/apply-panel` (admin) (+ apply/Accept/Deny buttons) |
-| Tickets | `/ticket-panel` (+ "Create Ticket"/"Close" buttons) |
+| Tickets | `/ticket` (everyone) `/ticket-close` (everyone, works in DMs) `/ticket-panel` (admin, "Create Ticket" button) |
 | XP | `/xp-board` (admin) `/xp-set` (superuser ID only) `/xp-stats` `/xp-global` |
 | Utility/fun | `/userinfo` `/serverinfo` `/avatar` `/poll` `/remindme` `/suggest` `/coinflip` `/dice` `/8ball` `/membercount` `/roleinfo` |
-| Text command | `!support <request>`, `!support config` |
+| Text command | `!support [request]` (same system as `/ticket`) |
 
 ## 9. Required dependencies
 

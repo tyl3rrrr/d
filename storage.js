@@ -17,7 +17,7 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 
 function defaultData() {
   return {
-    // guildId -> { ticketCategoryId, ticketStaffRoleId, logChannelId, ticketCounter,
+    // guildId -> { ticketChannelId, ticketStaffRoleId, logChannelId, macrumorsChannelId, ticketCounter,
     //              adminRoleId, modRoleId, welcome: {...}, appearanceRoleId, ... }
     guilds: {},
     warns: {}, // guildId -> { userId -> [ { reason, date, moderatorId } ] }
@@ -84,6 +84,11 @@ function reload() {
 
 function getGuildSettings(guildId) {
   return data.guilds[guildId] || {};
+}
+
+// IDs of all servers that have stored settings (used by the MacRumors poster).
+function listGuildIds() {
+  return Object.keys(data.guilds);
 }
 
 function setGuildSetting(guildId, key, value) {
@@ -227,6 +232,7 @@ function updateApplication(guildId, id, patch) {
 
 module.exports = {
   getGuildSettings,
+  listGuildIds,
   setGuildSetting,
   removeGuildSetting,
   nextTicketNumber,

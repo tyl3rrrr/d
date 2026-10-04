@@ -74,6 +74,10 @@ async function handleApplyStart(interaction, typeId) {
     });
     return;
   }
+  if (require('./ticket-runtime').hasSession(interaction.user.id)) {
+    await interaction.reply({ content: '❗ You have an open ticket - write your message to me in DMs (or type `/ticket-close` to cancel it) before starting an application.', flags: EPHEMERAL });
+    return;
+  }
   if (activeSessions.has(interaction.user.id)) {
     await interaction.reply({ content: '❗ You already have an application in progress - check your DMs to continue it.', flags: EPHEMERAL });
     return;
@@ -231,4 +235,8 @@ async function handleReviewButton(interaction, accept, applicationId) {
   });
 }
 
-module.exports = { START_PREFIX, ACCEPT_PREFIX, DENY_PREFIX, typeButtonId, buildPanelRow, handleApplyStart, handleDMAnswer, handleReviewButton };
+function hasSession(userId) {
+  return activeSessions.has(userId);
+}
+
+module.exports = { hasSession, START_PREFIX, ACCEPT_PREFIX, DENY_PREFIX, typeButtonId, buildPanelRow, handleApplyStart, handleDMAnswer, handleReviewButton };

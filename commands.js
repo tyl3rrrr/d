@@ -16,7 +16,7 @@ const mod = require('./commands-mod');
 const extra = require('./commands-extra');
 const utility = require('./commands-utility');
 const { settings } = require('./commands-settings');
-const { ticketPanel } = require('./commands-tickets');
+const { ticket, ticketClose, ticketPanel } = require('./commands-tickets');
 const { automodWords } = require('./commands-automod-words');
 const { automodCmd } = require('./commands-automod');
 const { welcomeSetup } = require('./commands-welcome');
@@ -61,7 +61,7 @@ const registry = [
 
   // Administration
   [settings, { category: 'admin', access: 'admin', scope: 'guild' }],
-  [config, { category: 'admin', access: 'admin', scope: 'guild' }],
+  [config, { category: 'admin', access: { default: 'admin', sub: { macrumors: 'mod' } }, scope: 'guild' }],
   [automodWords, { category: 'admin', access: 'admin', scope: 'guild' }],
   [automodCmd, { category: 'admin', access: { default: 'admin', sub: { 'setup-all': 'bot-owner' } }, scope: 'guild' }],
   [appearence, { category: 'admin', access: { default: 'everyone', sub: { nickname: 'admin', profile: 'admin', color: 'admin' } }, scope: 'guild' }],
@@ -81,6 +81,8 @@ const registry = [
   [xpGlobal, { category: 'xp', access: 'everyone', scope: 'anywhere' }],
 
   // Tickets
+  [ticket, { category: 'tickets', access: 'everyone', scope: 'guild' }],
+  [ticketClose, { category: 'tickets', access: 'everyone', scope: 'anywhere' }],
   [ticketPanel, { category: 'tickets', access: 'admin', scope: 'guild' }],
 
   // Utility & fun

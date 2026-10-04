@@ -99,6 +99,13 @@ const changelog = [
       '"Unknown Command" message now explains the real cause (the bot process needs a full restart after a ' +
       'file update or deploy - editing files or running "npm run deploy" alone does not reload running code).',
   },
+  {
+    date: '2026-10-04',
+    text:
+      'v7.5: new MacRumors news feed (/config macrumors), tickets reworked - no more ticket channels: /ticket and ' +
+      '/ticket-close now work through DMs and forward your one message (with files) to the ticket channel, ' +
+      'and /settings is now one interactive panel with selection menus for every server setting.',
+  },
 ];
 
 function reloadEnv() {

@@ -9,11 +9,11 @@
 //
 // Who counts as what?
 // - Server owner: guild.ownerId === user.id
-// - Admin:        member with the role set via `/settings admin-role`
+// - Admin:        member with the role set in `/settings`
 //                 OR with the Discord "Administrator" permission
 //                 (otherwise a freshly invited bot could never be set up
 //                 as long as no admin role has been configured yet)
-// - Moderator:    member with the role set via `/settings mod-role`
+// - Moderator:    member with the role set in `/settings`
 //
 // Possible `access` values for a command:
 //   'everyone'  - anyone (including via user install / in DMs)
@@ -97,10 +97,10 @@ function denyText(access) {
     case 'mod':
       return (
         "❌ You don't have permission for that. Allowed: **Server Owner**, the **Administrator role**, or the " +
-        '**Moderator role** of this server (set with `/settings admin-role` and `/settings mod-role`).'
+        '**Moderator role** of this server (set in `/settings`).'
       );
     case 'admin':
-      return "❌ You don't have permission for that. Allowed: **Server Owner** or the **Administrator role** of this server (set with `/settings admin-role`).";
+      return "❌ You don't have permission for that. Allowed: **Server Owner** or the **Administrator role** of this server (set in `/settings`).";
     case 'bot-owner':
     case 'superuser':
       return '❌ This command is only for the bot operator.';

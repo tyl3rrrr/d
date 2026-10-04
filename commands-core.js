@@ -244,7 +244,7 @@ function buildHelpCommand(getAllCommands) {
       }
       embeds[0].setTitle(`📖 Command Overview (${total} commands)`);
       embeds[embeds.length - 1].setFooter({
-        text: 'Also: !support <request> and !support config (text command, not a slash command)',
+        text: 'Also: !support [request] (text command, not a slash command) - same as /ticket',
       });
 
       await interaction.reply({ embeds: [embeds[0]], flags: EPHEMERAL });
