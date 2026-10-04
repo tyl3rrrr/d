@@ -25,6 +25,7 @@ const applyRuntime = require('./apply-runtime');
 const ticketRuntime = require('./ticket-runtime');
 const settingsPanel = require('./commands-settings');
 const macrumors = require('./macrumors');
+const interactionGuard = require('./interaction-guard');
 const logging = require('./logging');
 const { EPHEMERAL, errText } = require('./util');
 
@@ -260,17 +261,20 @@ function wire(client, plan) {
               `but the PROCESS itself was never restarted (editing files or running "npm run deploy" alone does NOT ` +
               `reload already-running code - only an actual process restart does, e.g. "npm start" again or /adm-reload).`
           );
-          await interaction.reply({
-            content:
-              '❌ Unknown command. If this command should exist, the bot process most likely needs a full restart ' +
-              '(not just a redeploy) to pick up new code - ask the bot operator to restart it (e.g. `/adm-reload`).',
-            flags: EPHEMERAL,
-          }).catch(() => {});
+          await interactionGuard.respond(
+            interaction,
+            '❌ Unknown command. If this command should exist, the bot process most likely needs a full restart ' +
+              '(not just a redeploy) to pick up new code - ask the bot operator to restart it (e.g. `/adm-reload`).'
+          );
           return;
         }
         // CENTRAL permission check (permissions.js) - before EVERY command.
-        if (!(await permissions.guardInteraction(interaction, command))) return;
-        await command.execute(interaction);
+        // interaction-guard.js adds the 3-second safety net (auto "thinking..." state for
+        // slow commands) and turns errors into clear messages (never "did not respond").
+        await interactionGuard.run(interaction, async () => {
+          if (!(await permissions.guardInteraction(interaction, command))) return;
+          await command.execute(interaction);
+        });
         return;
       }
 
@@ -293,11 +297,7 @@ function wire(client, plan) {
         }
       }
     } catch (error) {
-      console.error('Error while processing an interaction:', error);
-      if (interaction.guildId) logging.logError(client, interaction.guildId, error, `Interaction /${interaction.commandName || '?'}`);
-      const payload = { content: 'An error occurred while running this action.', flags: EPHEMERAL };
-      if (interaction.replied || interaction.deferred) await interaction.followUp(payload).catch(() => {});
-      else await interaction.reply(payload).catch(() => {});
+      await interactionGuard.handleError(interaction, error);
     }
   });
 

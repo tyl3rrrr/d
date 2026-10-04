@@ -193,6 +193,23 @@ the Server {user}! You are Member Number {number}"* and is unchanged.
 `{user}` renders as an `@mention`, which is what actually displays as
 "@username" in Discord's client.
 
+## v7.5.1 - no more "did not respond" / "An error occurred"
+
+**Cause:** Discord requires a first answer within 3 seconds. `/kick`, `/ban`, `/timeout`, `/warn` (DM + API call),
+`/clear`, `/lock`, `/unlock`, `/serverinfo`, `/say` and the application button (DM) did their slow work BEFORE
+replying. Over 3 seconds the interaction expired, the later reply failed ("Unknown interaction") and the user saw
+"The application did not respond" or the generic error text.
+
+**Fix (`interaction-guard.js`, used for every slash command in `index.js`):**
+- If a command has not answered after 1.5 s, the bot answers for it ("thinking..." state). The command keeps
+  running; its reply then replaces that message. A *public* reply (e.g. the kick confirmation) is posted publicly
+  below a short private "Done". Fast commands behave exactly as before.
+- Expired or double-answered interactions are only logged in the console, never shown to users. If that console
+  line appears for EVERY command, the same bot token is running twice (e.g. host + your PC) - stop the extra copy.
+- Real errors now say what is wrong (missing permission, DMs closed, deleted channel/role, ...) instead of a
+  generic text, and are still written to the console and the log channel.
+- The application button now acknowledges first and sends the DM afterwards.
+
 ## v7.5 - MacRumors feed, DM tickets, /settings panel
 
 ### MacRumors news (`/config macrumors [channel]`)

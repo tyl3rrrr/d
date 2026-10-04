@@ -59,27 +59,26 @@ function armTimeout(userId) {
 
 // Called from index.js when an "apply_start:<typeId>" button is clicked.
 async function handleApplyStart(interaction, typeId) {
+  // Acknowledge FIRST (sending the DM below can take longer than Discord's 3-second limit).
+  await interaction.deferReply({ flags: EPHEMERAL });
   const guild = interaction.guild;
   const types = storage.getApplyTypes(guild.id);
   const type = types.find((t) => t.id === typeId);
 
   if (!type) {
-    await interaction.reply({ content: '❌ This application type no longer exists.', flags: EPHEMERAL });
+    await interaction.editReply({ content: '❌ This application type no longer exists.' });
     return;
   }
   if (!type.questions || type.questions.length === 0) {
-    await interaction.reply({
-      content: '❌ This application type has no questions configured yet. Ask an admin to run `/apply-config add-question`.',
-      flags: EPHEMERAL,
-    });
+    await interaction.editReply({ content: '❌ This application type has no questions configured yet. Ask an admin to run `/apply-config add-question`.' });
     return;
   }
   if (require('./ticket-runtime').hasSession(interaction.user.id)) {
-    await interaction.reply({ content: '❗ You have an open ticket - write your message to me in DMs (or type `/ticket-close` to cancel it) before starting an application.', flags: EPHEMERAL });
+    await interaction.editReply({ content: '❗ You have an open ticket - write your message to me in DMs (or type `/ticket-close` to cancel it) before starting an application.' });
     return;
   }
   if (activeSessions.has(interaction.user.id)) {
-    await interaction.reply({ content: '❗ You already have an application in progress - check your DMs to continue it.', flags: EPHEMERAL });
+    await interaction.editReply({ content: '❗ You already have an application in progress - check your DMs to continue it.' });
     return;
   }
 
@@ -101,16 +100,13 @@ async function handleApplyStart(interaction, typeId) {
         `**Question 1/${type.questions.length}:** ${type.questions[0]}`
     );
   } catch (err) {
-    await interaction.reply({
-      content: "❌ I couldn't DM you - please enable direct messages from server members and try again.",
-      flags: EPHEMERAL,
-    });
+    await interaction.editReply({ content: "❌ I couldn't DM you - please enable direct messages from server members and try again." });
     return;
   }
 
   activeSessions.set(interaction.user.id, session);
   armTimeout(interaction.user.id);
-  await interaction.reply({ content: "📬 Check your DMs - I've sent you the first question!", flags: EPHEMERAL });
+  await interaction.editReply({ content: "📬 Check your DMs - I've sent you the first question!" });
 }
 
 // Called from index.js's MessageCreate handler for DMs from a user with an active session.

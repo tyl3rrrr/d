@@ -106,6 +106,13 @@ const changelog = [
       '/ticket-close now work through DMs and forward your one message (with files) to the ticket channel, ' +
       'and /settings is now one interactive panel with selection menus for every server setting.',
   },
+  {
+    date: '2026-10-04',
+    text:
+      'v7.5.1: fixed "The application did not respond" and the generic "An error occurred" message - slow commands ' +
+      '(kick, ban, timeout, warn, clear, lock, ...) are now answered automatically after 1.5 s, expired interactions ' +
+      'are handled quietly and real errors say what actually went wrong.',
+  },
 ];
 
 function reloadEnv() {
