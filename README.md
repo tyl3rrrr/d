@@ -193,6 +193,20 @@ the Server {user}! You are Member Number {number}"* and is unchanged.
 `{user}` renders as an `@mention`, which is what actually displays as
 "@username" in Discord's client.
 
+## v7.5.2 - which bot is actually answering?
+
+The sentence "An error occurred while running this action." no longer exists anywhere in the code from v7.5.1 on.
+If you still see it, the bot answering you is running OLD code (not updated/redeployed, or a second old copy using
+the same token). Check: `/botinfo` -> "Bot version" must say 7.5.2 (the console banner says it too).
+- **Hosted from GitHub/Railway/Replit/...?** Replacing files on your PC changes nothing there - commit/push the new
+  files and redeploy/restart on the host.
+- **Second copy?** Both copies receive every command. v7.5.2 detects it (its answer is rejected as "already
+  acknowledged"), prints a loud console warning, follows up to the bot owner and DMs the owner once per hour.
+  Sure way to kill every hidden copy: Developer Portal -> Bot -> Reset Token, then put the new token only into
+  the one place where the bot should run.
+- A leftover `bot.lock` naming the bot's own PID (common after a hard restart in containers) used to make the bot
+  refuse to start - then EVERY command shows "The application did not respond". Fixed.
+
 ## v7.5.1 - no more "did not respond" / "An error occurred"
 
 **Cause:** Discord requires a first answer within 3 seconds. `/kick`, `/ban`, `/timeout`, `/warn` (DM + API call),

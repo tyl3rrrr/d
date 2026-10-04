@@ -66,7 +66,11 @@ function acquireLock() {
 
   // File already exists - check whether the process named in it is still alive.
   const existingPid = parseInt(fs.readFileSync(LOCK_FILE, 'utf8').trim(), 10);
-  if (!Number.isNaN(existingPid) && isProcessAlive(existingPid)) {
+  // A lock that names OUR OWN pid (or our parent's) is a leftover from a previous run: in containers/hosts the
+  // restarted bot often gets the same low PID again, which used to make the bot refuse to start at all
+  // (-> every command: "The application did not respond").
+  const isUs = existingPid === process.pid || existingPid === process.ppid;
+  if (!Number.isNaN(existingPid) && !isUs && isProcessAlive(existingPid)) {
     console.error(
       `❌ The bot is already running in another process on THIS machine (PID ${existingPid})!\n` +
         'That is exactly what causes duplicate/"infinite" messages (Discord sends events to both processes).\n' +
@@ -177,7 +181,7 @@ for (const command of commandList) {
 }
 
 console.log('='.repeat(60));
-console.log(`🚀 Bot process started - PID: ${process.pid}`);
+console.log(`🚀 Bot process started - v${require('./package.json').version} - PID: ${process.pid}`);
 console.log(`📦 Node.js: ${process.version}`);
 console.log(`${commands.size} command(s) loaded: ${[...commands.keys()].join(', ')}`);
 console.log('='.repeat(60));

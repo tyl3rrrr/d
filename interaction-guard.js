@@ -43,7 +43,7 @@ function codeOf(err) {
 // The interaction is gone or was already answered - nothing useful left to tell the user.
 function isStale(err) {
   const c = codeOf(err);
-  return STALE_CODES.has(c) || c === 'InteractionAlreadyReplied' || c === 'InteractionNotReplied';
+  return STALE_CODES.has(c) || c === 'InteractionAlreadyReplied';
 }
 
 // A specific, readable explanation for the most common Discord errors.
@@ -70,6 +70,50 @@ function explain(err) {
   }
   if (err && (err.status === 429 || err.httpStatus === 429)) return 'Discord is rate-limiting me right now - please try again in a few seconds.';
   return `That didn't work: ${errText(err)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Second copy of the bot detected: if our FIRST answer to a fresh interaction is
+// rejected with "already acknowledged" (40060), another process using the same bot
+// token answered first. Both copies then run every command (double actions, errors,
+// "did not respond"). We can't stop the other copy, but we can say so loudly.
+// ---------------------------------------------------------------------------
+let lastDupLog = 0;
+let lastDupDm = 0;
+function noteDuplicate(interaction) {
+  const now = Date.now();
+  const os = require('os');
+  const who = `PID ${process.pid} @ ${os.hostname()}`;
+  if (now - lastDupLog > 60 * 1000) {
+    lastDupLog = now;
+    console.error(
+      `🚨 ANOTHER COPY OF THIS BOT IS RUNNING with the same token! /${interaction.commandName || '?'} was already answered by another process ` +
+        `(this one: ${who}). Stop the extra copy, or reset the token in the Developer Portal (Bot -> Reset Token) and put the new token only where the bot should run.`
+    );
+  }
+  let owners;
+  try {
+    owners = require('./config').getBotOwnerIds();
+  } catch (e) {
+    owners = new Set();
+  }
+  const text =
+    '🚨 **Another copy of this bot is running with the same token.**\n' +
+    `A command was already answered by a different process before this one (${who}).\n` +
+    'While two copies run, every command is executed twice and you get errors like "did not respond".\n' +
+    '**Fix:** stop the extra copy (old host, second PC, old deployment) - or reset the token in the Developer Portal (Bot -> Reset Token) ' +
+    'and put the new token only where the bot should run.';
+  // Tell the bot owner who ran the command right away (ephemeral follow-up) ...
+  if (owners.has(interaction.user && interaction.user.id)) {
+    (interaction.__raw || interaction).followUp({ content: text, flags: EPH_BIT }).catch(() => {});
+  }
+  // ... and DM the owners at most once per hour.
+  if (now - lastDupDm > 60 * 60 * 1000) {
+    lastDupDm = now;
+    for (const id of owners) {
+      interaction.client.users.fetch(id).then((u) => u.send(text)).catch(() => {});
+    }
+  }
 }
 
 function flagsValue(f) {
@@ -116,7 +160,7 @@ async function handleError(interaction, err) {
 
 // Wraps the answering methods of one interaction (see header). Returns its context.
 function wrap(interaction) {
-  const ctx = { acked: false, auto: false, deferPromise: null, usedReply: false };
+  const ctx = { acked: false, auto: false, deferPromise: null, usedReply: false, ownAcks: 0 };
   const orig = {};
   for (const m of ['reply', 'deferReply', 'editReply', 'followUp', 'deleteReply', 'deferUpdate', 'update', 'showModal']) {
     if (typeof interaction[m] === 'function') orig[m] = interaction[m].bind(interaction);
@@ -127,11 +171,23 @@ function wrap(interaction) {
     if (ctx.deferPromise) await ctx.deferPromise;
   };
 
+  // Our first answer being rejected with 40060 proves another process answered first.
+  const firstAck = async (fn, ...a) => {
+    ctx.acked = true;
+    ctx.ownAcks += 1;
+    const first = ctx.ownAcks === 1;
+    try {
+      return await fn(...a);
+    } catch (err) {
+      if (first && codeOf(err) === 40060) noteDuplicate(interaction);
+      throw err;
+    }
+  };
+
   if (orig.deferReply) {
     interaction.deferReply = (o) => {
       if (ctx.auto) return waitAuto(); // already deferred by the safety net
-      ctx.acked = true;
-      return orig.deferReply(o);
+      return firstAck(orig.deferReply, o);
     };
   }
   for (const m of ['deferUpdate', 'update', 'showModal']) {
@@ -152,10 +208,7 @@ function wrap(interaction) {
   }
   if (orig.reply) {
     interaction.reply = async (opts) => {
-      if (!ctx.auto) {
-        ctx.acked = true;
-        return orig.reply(opts);
-      }
+      if (!ctx.auto) return firstAck(orig.reply, opts);
       // The safety net already deferred -> answer through editReply/followUp.
       await waitAuto();
       const o = typeof opts === 'string' ? { content: opts } : { ...(opts || {}) };
@@ -184,7 +237,8 @@ async function run(interaction, fn) {
     ctx.acked = true;
     ctx.auto = true;
     ctx.deferPromise = interaction.__raw.deferReply({ flags: EPH_BIT }).catch((err) => {
-      if (!isStale(err)) console.warn('Auto-defer failed:', errText(err));
+      if (codeOf(err) === 40060) noteDuplicate(interaction);
+      else if (!isStale(err)) console.warn('Auto-defer failed:', errText(err));
     });
   }, AUTO_DEFER_MS);
   try {

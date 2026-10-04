@@ -113,6 +113,12 @@ const changelog = [
       '(kick, ban, timeout, warn, clear, lock, ...) are now answered automatically after 1.5 s, expired interactions ' +
       'are handled quietly and real errors say what actually went wrong.',
   },
+  {
+    date: '2026-10-04',
+    text:
+      'v7.5.2: the bot now warns the owner when a second copy with the same token is running, /botinfo shows the ' +
+      'process, the start banner shows the version, and a leftover bot.lock can no longer stop the bot from starting.',
+  },
 ];
 
 function reloadEnv() {

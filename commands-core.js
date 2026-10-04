@@ -156,6 +156,7 @@ const botinfo = {
         { name: 'Server', value: String(client.guilds.cache.size), inline: true },
         { name: 'RAM usage', value: `${(mem.rss / 1024 / 1024).toFixed(1)} MB`, inline: true },
         { name: 'Platform', value: `${os.platform()} (${os.arch()})`, inline: true },
+        { name: 'Process', value: `PID ${process.pid} @ ${os.hostname()}`.slice(0, 1000), inline: true },
         { name: 'Uptime', value: formatUptime(uptimeMs), inline: true }
       )
       .setTimestamp();
