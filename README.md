@@ -1,15 +1,43 @@
-# tylxrrrr Discord Bot (v7.6.0)
+# tylxrrrr Discord Bot (v7.7.0)
 
 A single, flat Node.js folder (no subfolders) built on discord.js v14. This
 README is deliberately the **only** Markdown file in this delivery.
 
 ---
 
+## v7.7.0 - reports, rules, partners, new menus, cleanup
+
+**Removed commands:** `/ticket-panel`, `/adm-reload`, `/8ball`, `/dice`, `/antimdm`, `/coinflip`, `/links`,
+`/remindme`, `/web` and `/bstatnow`. They are gone from the code, from `/help` and - after the next start -
+from Discord's command list (the bot compares its list with Discord's on startup and deletes outdated commands).
+Ticket panels posted by older versions keep working (their button is still handled).
+
+**`/help`** is now a menu: an overview plus a drop-down to switch between categories. **`/changelog`** pages through
+the updates (3 per page, Previous/Next). Both are private to the person who opened them.
+
+**`/report user reason [evidence]`** (everyone; 1 report per minute) - creates a panel in the **Report channel**
+(`/settings`) with the status and the moderator who handles it: 🟡 Open → [Take] → 🔵 In progress by @mod →
+[Resolve] 🟢 / [Dismiss] ⚪ → [Reopen]. Only moderators can use the buttons. The reporter gets a DM when it is closed.
+
+**`/rules`** (administrators; `view` is open to everyone) - `edit` opens a form, a changed text creates a new
+**version** (the last 10 are kept), `post` publishes the rules with an **"I accept the rules"** button, `status`
+shows how many members accepted the current version. The button contains the version, so an outdated message can
+never accept rules the person has not seen. The optional **Rules role** (`/settings`) is granted on accept; roles are
+not removed automatically when a new version appears.
+
+**`/partner`** - `request name invite description` (everyone): the invite is checked against Discord (valid? which
+server? how many members? temporary?) and the request lands in the **Partner review channel** with [Accept] / [Deny]
+(moderators). Accepting saves the partner and **posts it automatically** in the **Partner channel** with a join
+button; the requester gets a DM. `list` shows all partners, `remove` (admin, autocomplete) deletes a partner and its post.
+
+New `/settings` entries: Report channel, Partner review channel, Partner channel, Rules role.
+
+---
+
 ## v7.6.0 - GitHub releases, giveaways, statistics, legal links
 
 **Removed:** the whole XP system (`/xp-board`, `/xp-set`, `/xp-stats`, `/xp-global`, message XP, level roles,
-leaderboard, the XP setting in `/settings`) and every `/appearence` command. Old XP data and the leftover
-`xpBoard*` / `appearanceRoleId` settings are deleted from `data.json` automatically the next time it is saved.
+leaderboard, the XP setting in `/settings`). Old XP data is deleted from `data.json` automatically the next time it is saved.
 
 **`/config github [channel]`** (admin; also in the `/settings` panel) - new releases of the repository
 `tyl3rrrr/d` are posted into the chosen channel (`github.js`). Checked every 10 minutes through the public GitHub
@@ -94,18 +122,16 @@ because everything is validated locally first.
 | `logging.js` | Central logging into the channel set via `/settings log-channel`. |
 | `github.js` | GitHub release feed (`/config github`). |
 | `giveaway-runtime.js` / `commands-giveaway.js` | Giveaway logic (join button, automatic draw, reroll) and the `/giveaway` command. |
+| `report-runtime.js` / `commands-report.js` | Report panel with status and handler; the `/report` command. |
+| `rules-runtime.js` / `commands-rules.js` | Versioned server rules, Accept button, edit form; the `/rules` command. |
+| `partner-runtime.js` / `commands-partner.js` | Partner requests (invite check), review buttons, automatic posts; the `/partner` command. |
+| `menus.js` | The interactive `/help` and `/changelog` menus. |
 | `stats.js` / `commands-info.js` | Usage counters for `/stats`; `/tos`, `/privacy-policy` and `/stats` commands. |
 | `presence.js` | Bot online status (bot-wide, see the limitation below). |
 | `apply-runtime.js` | DM-interview state machine and Accept/Deny button logic for the applications system (see `commands-apply.js`). |
 
 ## 4. Fixes made after your test feedback (this round)
 
-- **`/appearence color` -> "Missing guild feature":** the code always sent
-  the `colors` field (gradient/holographic), which Discord only accepts with
-  "Enhanced Role Styles" - that rejected EVERY color, even a plain one.
-  Fixed: a plain color (only `primary`) now uses the classic `color` field
-  directly; the `colors` field is only attempted for `secondary`/
-  `holographic` (with a fallback to `color` if the server doesn't support it).
 - **`/automod setup` -> still failing with "Invalid Form Body" / "max rules
   of type exceeded":** Discord only allows a limited number of rules **per
   type per server**, regardless of who created them. The previous version
@@ -294,10 +320,6 @@ setting is no longer used. Everything is logged to the log channel like before.
 
 ## 7. Implemented points (brief, items 1-17)
 
-### 1) `/appearence` - removed in v7.6.0
-
-The command and its code (`commands-appearance.js`) no longer exist.
-
 ### 2) Welcome system
 `/welcome-setup` (admin) with `role`, `channel`, `dm`, custom `message`/
 `dm-message` text (placeholders `{user} {username} {server} {number}`), and
@@ -346,22 +368,16 @@ Generated automatically from `commands.js`, sorted by category (General,
 Moderation, Administration, Welcome, Tickets, Utility, XP, Bot). Shows each
 command's subcommands and required access level.
 
-### 9) `/adm-reload`
-Performs a **real process restart** (`process.exit(0)`), not just a
-`.env` reload (that's still `/reload`, bot owner only). **Limitation:**
-Node.js can't replace itself - the process must exit and be restarted
-automatically by a process manager (systemd with `Restart=always`, PM2,
-Docker with `--restart unless-stopped`, Railway/Render, etc.). **Without**
-such auto-restart, the bot stays offline after `/adm-reload` until started
-manually - that can't be worked around from Discord/Node.js.
+### 9) Restarting the bot
+The bot has no restart command anymore (`/adm-reload` was removed in v7.7.0). Restart the process yourself, or let a
+process manager do it (see section 12). `/reload` (bot owner) still reloads only the `.env`.
 
 ### 10) Bot status with server count
 Runs automatically in the background (`presence.js`): shows "👀 X servers"
 by default, refreshes immediately on join/leave and otherwise sparingly
-every 10 minutes (no unnecessary API calls). `/bstatnow` (**exclusively**
-superuser ID `1324102364608598118`) switches to manual mode and configures
-status/activity/streaming in detail; `/bstatnow auto` switches back to the
-automatic server-count mode.
+every 10 minutes (no unnecessary API calls). The bot owner can switch to
+manual mode and set status/activity/streaming with `/bot-status`
+(`/bot-status auto` switches back to the automatic server-count mode).
 
 **Naming conflict resolved:** the bot already had an existing `/status`
 command ("checks whether the website is reachable") - per the brief, that
@@ -414,15 +430,18 @@ never changing a single server's values.
 
 | Category | Commands |
 |---|---|
-| General | `/antimdm` `/web` `/uptime` `/status` `/changelog` `/links` `/botinfo` `/stats` `/tos` `/privacy-policy` `/ping` `/help` |
+| General | `/uptime` `/status` `/changelog` (menu) `/botinfo` `/stats` `/tos` `/privacy-policy` `/ping` `/help` (menu) |
 | Moderation (mod+) | `/kick` `/ban` `/timeout` `/warn` `/clear` `/slowmode` `/lock` `/unlock` `/nickname` `/role` `/purge-user` `/say` |
-| Administration (admin) | `/settings` (panel) `/config suggest` `/config macrumors` (mod+) `/config github` `/automod-words` `/automod setup\|status\|remove` `/adm-reload` |
-| Bot owner/superuser | `/reload` (owner) `/bot-status` (owner) `/automod setup-all` (owner) `/bstatnow` (superuser ID only) |
+| Administration (admin) | `/settings` (panel) `/config suggest` `/config macrumors` (mod+) `/config github` `/automod-words` `/automod setup\|status\|remove` |
+| Bot owner/superuser | `/reload` (owner) `/bot-status` (owner) `/automod setup-all` (owner) |
 | Welcome | `/welcome-setup` |
 | Applications | `/apply-config` (admin) `/apply-panel` (admin) (+ apply/Accept/Deny buttons) |
-| Tickets | `/ticket` (everyone) `/ticket-close` (everyone, works in DMs) `/ticket-panel` (admin, "Create Ticket" button) |
+| Tickets | `/ticket` (everyone) `/ticket-close` (everyone, works in DMs) |
 | Giveaways (mod+) | `/giveaway create\|end\|reroll\|cancel\|list` |
-| Utility/fun | `/userinfo` `/serverinfo` `/avatar` `/poll` `/remindme` `/suggest` `/coinflip` `/dice` `/8ball` `/membercount` `/roleinfo` |
+| Reports | `/report` (everyone) + moderator panel buttons |
+| Rules | `/rules view` (everyone) `/rules edit\|post\|status` (admin) + Accept button |
+| Partners | `/partner request\|list` (everyone) `/partner remove` (admin) + Accept/Deny buttons |
+| Utility/fun | `/userinfo` `/serverinfo` `/avatar` `/poll` `/suggest` `/membercount` `/roleinfo` |
 | Text command | `!support [request]` (same system as `/ticket`) |
 
 ## 9. Required dependencies
@@ -443,7 +462,7 @@ New optional variables: `GITHUB_REPO`, `GITHUB_TOKEN`, `GITHUB_INTERVAL_MIN`, `S
 
 A single `data.json` file in the folder (created automatically on first
 start, listed in `.gitignore`). Contains: `guilds` (per-server settings),
-`warns`, `giveaways`, `meta` (incl. the usage statistics) (incl. the command hash for auto-sync,
+`warns`, `giveaways`, `reports`, `partners`, `rules`, `meta` (incl. the usage statistics) (incl. the command hash for auto-sync,
 presence configuration). Writes atomically and automatically backs up the
 file if it's ever corrupted (`data.json.corrupt-*`) instead of losing data.
 
@@ -454,7 +473,7 @@ npm install
 npm start          # equivalent to: node --max-old-space-size=1536 index.js
 ```
 
-For a real auto-restart after `/adm-reload`, use a process manager, e.g. PM2:
+For an automatic restart (e.g. after a crash), use a process manager, e.g. PM2:
 
 ```bash
 npm install -g pm2
@@ -466,8 +485,6 @@ pm2 start index.js --name tylxrrrr-bot --max-memory-restart 1536M
 - Bot presence is identical across every server at once (sections 5/10/11).
 - A server invite that's "permanent forever" can't be guaranteed, only the
   technically best available one (`max_age: 0`) (section 14).
-- `/adm-reload` needs a process manager with auto-restart, otherwise the
-  bot stays offline after the restart command (section 9).
 - The "Uses AutoMod" badge depends on Discord itself (at least 100 rules
   across all servers) - the bot can create the prerequisite (`/automod
   setup` or `/automod setup-all` on every server), but granting the badge

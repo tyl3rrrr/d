@@ -4,7 +4,7 @@
 // index.js, deploy-commands.js and command-tools.js only import this file.
 //
 // Eintrag: [command, { category, access, scope }]
-//   category: general | moderation | admin | welcome | tickets | utility | giveaway | bot | ai
+//   category: general | moderation | admin | welcome | apply | tickets | reports | rules | partner | giveaway | utility | bot | ai
 //   access  : everyone | mod | admin | bot-owner | superuser  (or { default, sub: {...} })
 //   scope   : 'anywhere' (servers, DMs, user install) | 'guild' (only servers the bot is in)
 //
@@ -16,27 +16,27 @@ const mod = require('./commands-mod');
 const extra = require('./commands-extra');
 const utility = require('./commands-utility');
 const { settings } = require('./commands-settings');
-const { ticket, ticketClose, ticketPanel } = require('./commands-tickets');
+const { ticket, ticketClose } = require('./commands-tickets');
+const menus = require('./menus');
 const { automodWords } = require('./commands-automod-words');
 const { automodCmd } = require('./commands-automod');
 const { welcomeSetup } = require('./commands-welcome');
-const { admReload } = require('./commands-admin');
-const { botStatus, bstatnow } = require('./commands-presence');
+const { botStatus } = require('./commands-presence');
 const { giveaway } = require('./commands-giveaway');
+const { report } = require('./commands-report');
+const { rules } = require('./commands-rules');
+const { partner } = require('./commands-partner');
 const { tos, privacyPolicy, stats } = require('./commands-info');
 const { applyConfig, applyPanel } = require('./commands-apply');
 const { config } = require('./commands-config');
 
-const help = core.buildHelpCommand(() => allCommands);
+const help = menus.buildHelpCommand();
 
 const registry = [
   // General
-  [core.antimdm, { category: 'general', access: 'everyone', scope: 'anywhere' }],
-  [core.web, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [core.uptime, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [core.status, { category: 'general', access: 'everyone', scope: 'anywhere' }],
-  [core.changelog, { category: 'general', access: 'everyone', scope: 'anywhere' }],
-  [core.links, { category: 'general', access: 'everyone', scope: 'anywhere' }],
+  [menus.changelog, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [core.botinfo, { category: 'bot', access: 'everyone', scope: 'anywhere' }],
   [stats, { category: 'bot', access: 'everyone', scope: 'anywhere' }],
   [tos, { category: 'general', access: 'everyone', scope: 'anywhere' }],
@@ -44,9 +44,7 @@ const registry = [
   [extra.ping, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [help, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [core.reload, { category: 'bot', access: 'bot-owner', scope: 'anywhere' }],
-  [admReload, { category: 'bot', access: 'admin', scope: 'guild' }],
   [botStatus, { category: 'bot', access: 'bot-owner', scope: 'guild' }],
-  [bstatnow, { category: 'bot', access: 'superuser', scope: 'anywhere' }],
 
   // Moderation (moderator role, administrator role, or server owner)
   [mod.kick, { category: 'moderation', access: 'mod', scope: 'guild' }],
@@ -75,25 +73,24 @@ const registry = [
   [applyConfig, { category: 'apply', access: 'admin', scope: 'guild' }],
   [applyPanel, { category: 'apply', access: 'admin', scope: 'guild' }],
 
-
   // Giveaways (moderators and above)
   [giveaway, { category: 'giveaway', access: 'mod', scope: 'guild' }],
+
+  // Reports, rules, partners
+  [report, { category: 'reports', access: 'everyone', scope: 'guild' }],
+  [rules, { category: 'rules', access: { default: 'admin', sub: { view: 'everyone' } }, scope: 'guild' }],
+  [partner, { category: 'partner', access: { default: 'everyone', sub: { remove: 'admin' } }, scope: 'guild' }],
 
   // Tickets
   [ticket, { category: 'tickets', access: 'everyone', scope: 'guild' }],
   [ticketClose, { category: 'tickets', access: 'everyone', scope: 'anywhere' }],
-  [ticketPanel, { category: 'tickets', access: 'admin', scope: 'guild' }],
 
   // Utility & fun
   [utility.userinfo, { category: 'utility', access: 'everyone', scope: 'anywhere' }],
   [utility.serverinfo, { category: 'utility', access: 'everyone', scope: 'guild' }],
   [utility.avatar, { category: 'utility', access: 'everyone', scope: 'anywhere' }],
   [utility.poll, { category: 'utility', access: 'everyone', scope: 'guild' }],
-  [extra.remindme, { category: 'utility', access: 'everyone', scope: 'anywhere' }],
   [extra.suggest, { category: 'utility', access: 'everyone', scope: 'guild' }],
-  [extra.coinflip, { category: 'utility', access: 'everyone', scope: 'anywhere' }],
-  [extra.dice, { category: 'utility', access: 'everyone', scope: 'anywhere' }],
-  [extra.eightball, { category: 'utility', access: 'everyone', scope: 'anywhere' }],
   [extra.membercount, { category: 'utility', access: 'everyone', scope: 'guild' }],
   [extra.roleinfo, { category: 'utility', access: 'everyone', scope: 'guild' }],
 ];

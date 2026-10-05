@@ -4,7 +4,7 @@ const { SlashCommandBuilder, EmbedBuilder, version: djsVersion } = require('disc
 
 const config = require('./config');
 const pkg = require('./package.json');
-const { EPHEMERAL, truncate, splitLines } = require('./util');
+const { EPHEMERAL } = require('./util');
 
 function formatUptime(ms) {
   let totalSeconds = Math.floor(ms / 1000);
@@ -23,20 +23,6 @@ function formatUptime(ms) {
   parts.push(`${seconds} second${seconds === 1 ? '' : 's'}`);
   return parts.join(', ');
 }
-
-const antimdm = {
-  data: new SlashCommandBuilder().setName('antimdm').setDescription('Sends the AntiMDM link'),
-  async execute(interaction) {
-    await interaction.reply(config.links.antimdm);
-  },
-};
-
-const web = {
-  data: new SlashCommandBuilder().setName('web').setDescription('Shows the link to the website'),
-  async execute(interaction) {
-    await interaction.reply(`Link: ${config.links.website}`);
-  },
-};
 
 const uptime = {
   data: new SlashCommandBuilder().setName('uptime').setDescription('Shows how long the bot has been running'),
@@ -89,43 +75,6 @@ const status = {
   },
 };
 
-const changelogCmd = {
-  data: new SlashCommandBuilder().setName('changelog').setDescription("Shows the project's latest updates"),
-  async execute(interaction) {
-    const entries = config.changelog;
-    if (!entries || entries.length === 0) {
-      await interaction.reply({ content: 'There are no changelog entries yet.', flags: EPHEMERAL });
-      return;
-    }
-    const latest = entries.slice(-5).reverse();
-    const embed = new EmbedBuilder()
-      .setTitle('📋 Changelog')
-      .setColor(0x5865f2)
-      .setDescription(latest.map((e) => `**${e.date || '?'}** — ${e.text || '(no text)'}`).join('\n\n'))
-      .setFooter({ text: `Latest ${latest.length} of ${entries.length} entries` });
-    await interaction.reply({ embeds: [embed] });
-  },
-};
-
-const linksCmd = {
-  data: new SlashCommandBuilder().setName('links').setDescription('Shows important project links'),
-  async execute(interaction) {
-    const l = config.links || {};
-    const fields = [];
-    if (l.website) fields.push({ name: '🌐 Website', value: l.website });
-    if (l.discordInvite) fields.push({ name: '💬 Discord server', value: l.discordInvite });
-    if (l.github) fields.push({ name: '🐙 GitHub', value: l.github });
-    if (l.antimdm) fields.push({ name: '🛡️ AntiMDM', value: l.antimdm });
-
-    if (fields.length === 0) {
-      await interaction.reply({ content: 'No links have been configured yet.', flags: EPHEMERAL });
-      return;
-    }
-    const embed = new EmbedBuilder().setTitle('🔗 Important Links').setColor(0x5865f2).addFields(fields);
-    await interaction.reply({ embeds: [embed] });
-  },
-};
-
 const reloadCmd = {
   // Access (bot operator only) is checked centrally in permissions.js (access: 'bot-owner').
   data: new SlashCommandBuilder().setName('reload').setDescription('Reloads the .env without restarting the bot'),
@@ -164,106 +113,9 @@ const botinfo = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// /help - generated AUTOMATICALLY from the actually registered command list.
-// There is no manual command list anymore that could be forgotten when adding
-// commands: every command carries its category (see the registry in
-// commands.js). Commands without a known category land under "Other" - so no
-// command ever drops out of the overview.
-// ---------------------------------------------------------------------------
-const CATEGORY_ORDER = [
-  ['general', '📌 General'],
-  ['moderation', '🛡️ Moderation'],
-  ['admin', '⚙️ Administration'],
-  ['welcome', '👋 Welcome'],
-  ['apply', '📋 Applications'],
-  ['tickets', '🎫 Tickets'],
-  ['utility', '🧰 Utility & Fun'],
-  ['giveaway', '🎉 Giveaways'],
-  ['bot', '🤖 Bot'],
-  ['ai', '🧠 AI'],
-];
-const FALLBACK_CATEGORY = '📦 Other';
-
-function accessBadge(cmd) {
-  const a = cmd.access;
-  if (!a || a === 'everyone') return '';
-  if (typeof a === 'string') {
-    if (a === 'mod') return ' `🛡️ Mod`';
-    if (a === 'admin') return ' `🔧 Admin`';
-    return ' `👑 Owner`';
-  }
-  const restricted = Object.values(a.sub || {}).some((v) => v && v !== 'everyone');
-  return restricted ? ' `partly 🔧 Admin`' : '';
-}
-
-function describeCommand(cmd) {
-  const json = cmd.data.toJSON();
-  const subs = (json.options || []).filter((o) => o.type === 1 || o.type === 2).map((o) => o.name);
-  const subText = subs.length ? ` _(${subs.join(' · ')})_` : '';
-  return `\`/${json.name}\`${subText} — ${truncate(json.description || '', 70)}${accessBadge(cmd)}`;
-}
-
-function buildHelpCommand(getAllCommands) {
-  return {
-    data: new SlashCommandBuilder().setName('help').setDescription('Shows all available commands'),
-    async execute(interaction) {
-      const all = getAllCommands();
-
-      const groups = new Map(CATEGORY_ORDER.map(([key, label]) => [key, { label, lines: [] }]));
-      groups.set('__other', { label: FALLBACK_CATEGORY, lines: [] });
-
-      for (const cmd of all) {
-        const group = groups.get(cmd.category) || groups.get('__other');
-        group.lines.push(describeCommand(cmd));
-      }
-
-      // Build fields (max. 1024 characters per field) and distribute them across
-      // embeds (Discord: max. 6000 characters per message across all embeds -
-      // so it's split across multiple messages when needed).
-      const fields = [];
-      for (const { label, lines } of groups.values()) {
-        if (lines.length === 0) continue;
-        splitLines(lines, 1000).forEach((block, i) => {
-          fields.push({ name: i === 0 ? `${label} (${lines.length})` : `${label} (cont.)`, value: block });
-        });
-      }
-
-      const total = all.length;
-      const embeds = [];
-      let current = null;
-      let size = 0;
-      for (const f of fields) {
-        const fieldSize = f.name.length + f.value.length;
-        if (!current || size + fieldSize > 5000 || current.data.fields?.length >= 25) {
-          current = new EmbedBuilder().setColor(0x5865f2);
-          embeds.push(current);
-          size = 0;
-        }
-        current.addFields(f);
-        size += fieldSize;
-      }
-      embeds[0].setTitle(`📖 Command Overview (${total} commands)`);
-      embeds[embeds.length - 1].setFooter({
-        text: 'Also: !support [request] (text command, not a slash command) - same as /ticket',
-      });
-
-      await interaction.reply({ embeds: [embeds[0]], flags: EPHEMERAL });
-      for (const extra of embeds.slice(1)) {
-        await interaction.followUp({ embeds: [extra], flags: EPHEMERAL });
-      }
-    },
-  };
-}
-
 module.exports = {
-  antimdm,
-  web,
   uptime,
   status,
-  changelog: changelogCmd,
-  links: linksCmd,
   reload: reloadCmd,
   botinfo,
-  buildHelpCommand,
 };

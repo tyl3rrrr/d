@@ -45,8 +45,12 @@ const SETTINGS = [
   { id: 'suggest', group: 'Channels', label: 'Suggestions channel', desc: 'Where /suggest posts. Clear it to turn /suggest off.', type: 'channel', post: true, path: ['suggestChannelId'] },
   { id: 'macrumors', group: 'Channels', label: 'MacRumors channel', desc: 'New MacRumors articles are posted here. Clear it to turn them off.', type: 'channel', post: true, path: ['macrumorsChannelId'], after: 'macrumors' },
   { id: 'github', group: 'Channels', label: 'GitHub release channel', desc: 'New GitHub releases are posted here. Clear it to turn them off.', type: 'channel', post: true, path: ['githubChannelId'], after: 'github' },
+  { id: 'report', group: 'Channels', label: 'Report channel', desc: 'Reports from /report appear here as a panel for moderators.', type: 'channel', post: true, path: ['reportChannelId'] },
+  { id: 'partnerreview', group: 'Channels', label: 'Partner review channel', desc: 'Partner requests are reviewed here (Accept / Deny).', type: 'channel', post: true, path: ['partnerReviewChannelId'] },
+  { id: 'partner', group: 'Channels', label: 'Partner channel', desc: 'Accepted partners are announced here automatically.', type: 'channel', post: true, path: ['partnerChannelId'] },
   { id: 'apply', group: 'Channels', label: 'Application review channel', desc: 'Submitted applications (with Accept/Deny buttons) go here.', type: 'channel', post: true, path: ['applyReviewChannelId'] },
   { id: 'wchan', group: 'Welcome', label: 'Welcome channel', desc: 'The public welcome message is posted here.', type: 'channel', post: true, path: ['welcome', 'channelId'] },
+  { id: 'rulesrole', group: 'Rules', label: 'Rules role', desc: 'Given to members when they click "I accept the rules" (/rules post).', type: 'role', team: true, hierarchy: true, path: ['rulesRoleId'] },
   { id: 'wrole', group: 'Welcome', label: 'Welcome role', desc: 'Given automatically to every new member.', type: 'role', team: true, hierarchy: true, path: ['welcome', 'roleId'] },
   { id: 'wdm', group: 'Welcome', label: 'Welcome DM', desc: 'Also send new members a private welcome message.', type: 'toggle', path: ['welcome', 'dmEnabled'] },
 ];

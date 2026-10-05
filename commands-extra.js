@@ -19,41 +19,6 @@ const ping = {
   },
 };
 
-const remindme = {
-  data: new SlashCommandBuilder()
-    .setName('remindme')
-    .setDescription('Reminds you by message after a set time')
-    .addIntegerOption((opt) =>
-      opt.setName('minutes').setDescription('In how many minutes?').setMinValue(1).setMaxValue(1440).setRequired(true)
-    )
-    .addStringOption((opt) => opt.setName('text').setDescription('What should you be reminded of?').setRequired(true)),
-
-  async execute(interaction) {
-    const minutes = interaction.options.getInteger('minutes');
-    const text = interaction.options.getString('text');
-
-    await interaction.reply({
-      content: `⏰ Okay, I'll remind you in ${minutes} minute(s): "${text}"`,
-      flags: EPHEMERAL,
-    });
-
-    // Note: this only lives in memory - it is lost when the bot restarts. For
-    // important/long reminders, make a note yourself as well.
-    //
-    // The interaction token (followUp) is only valid for 15 minutes, while
-    // reminders can be up to 24 hours - so delivery is primarily via DM, with
-    // followUp only as a fallback (if DMs are disabled).
-    setTimeout(async () => {
-      const reminder = `⏰ Reminder: ${text}`;
-      try {
-        await interaction.user.send(reminder);
-      } catch (err) {
-        await interaction.followUp({ content: `<@${interaction.user.id}> ${reminder}` }).catch(() => {});
-      }
-    }, minutes * 60 * 1000);
-  },
-};
-
 const SUGGEST_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes to type the suggestion
 
 const suggest = {
@@ -261,58 +226,6 @@ const say = {
   },
 };
 
-const coinflip = {
-  data: new SlashCommandBuilder().setName('coinflip').setDescription('Flips a coin (heads or tails)'),
-  async execute(interaction) {
-    const result = Math.random() < 0.5 ? 'Heads 🪙' : 'Tails 🪙';
-    await interaction.reply(`🎲 Result: **${result}**`);
-  },
-};
-
-const dice = {
-  data: new SlashCommandBuilder()
-    .setName('dice')
-    .setDescription('Rolls a die')
-    .addIntegerOption((opt) => opt.setName('sides').setDescription('Number of sides (default: 6)').setMinValue(2).setMaxValue(1000).setRequired(false)),
-  async execute(interaction) {
-    const sides = interaction.options.getInteger('sides') || 6;
-    const result = Math.floor(Math.random() * sides) + 1;
-    await interaction.reply(`🎲 You rolled a **${result}** (1-${sides}).`);
-  },
-};
-
-const EIGHT_BALL_ANSWERS = [
-  'Yes, definitely.',
-  'It is certain.',
-  'Without a doubt.',
-  'Yes.',
-  'Probably.',
-  'Hazy - try again later.',
-  "Can't say right now.",
-  'Concentrate and ask again.',
-  "Don't count on it.",
-  'My answer is no.',
-  'My sources say no.',
-  "Doesn't look good.",
-  'Very doubtful.',
-];
-
-const eightball = {
-  data: new SlashCommandBuilder()
-    .setName('8ball')
-    .setDescription('Ask the magic 8-ball a question')
-    .addStringOption((opt) => opt.setName('question').setDescription('Your question').setRequired(true)),
-  async execute(interaction) {
-    const question = interaction.options.getString('question');
-    const answer = EIGHT_BALL_ANSWERS[Math.floor(Math.random() * EIGHT_BALL_ANSWERS.length)];
-    const embed = new EmbedBuilder()
-      .setTitle('🎱 Magic 8-Ball')
-      .addFields({ name: 'Question', value: question }, { name: 'Answer', value: answer })
-      .setColor(0x2f3136);
-    await interaction.reply({ embeds: [embed] });
-  },
-};
-
 const membercount = {
   data: new SlashCommandBuilder().setName('membercount').setDescription("Shows this server's member count"),
   async execute(interaction) {
@@ -341,4 +254,4 @@ const roleinfo = {
   },
 };
 
-module.exports = { ping, remindme, suggest, role, purgeUser, say, coinflip, dice, eightball, membercount, roleinfo };
+module.exports = { ping, suggest, role, purgeUser, say, membercount, roleinfo };

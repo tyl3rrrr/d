@@ -4,19 +4,19 @@
 //
 //   /ticket        - starts a ticket: the bot DMs the user (everyone)
 //   /ticket-close  - cancels the open ticket; works in DMs with the bot (everyone)
-//   /ticket-panel  - posts a panel with a "Create Ticket" button (administrators)
 //
 // About "the bot deletes the user's message": Discord does not allow a bot to
 // delete a slash-command invocation, but replying EPHEMERALLY hides it from
 // everyone else completely - so nothing about /ticket stays visible in the channel.
 
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const storage = require('./storage');
 const ticketRuntime = require('./ticket-runtime');
 const { getMemberLevel, LEVEL } = require('./permissions');
 const { EPHEMERAL } = require('./util');
 const logging = require('./logging');
 
+// Panels posted by OLDER versions (/ticket-panel, now removed) still carry this button - keep it working.
 const OPEN_BUTTON_ID = 'ticket_open';
 const CLOSE_BUTTON_ID = 'ticket_close'; // only used by ticket channels created by OLDER versions
 
@@ -40,30 +40,6 @@ const ticketClose = {
     const cancelled = ticketRuntime.cancel(interaction.user.id);
     const content = cancelled ? ticketRuntime.TEXT.cancelled : 'You have no open ticket.';
     await interaction.reply(interaction.inGuild() ? { content, flags: EPHEMERAL } : { content });
-  },
-};
-
-const ticketPanel = {
-  data: new SlashCommandBuilder().setName('ticket-panel').setDescription('Posts a panel where users can open a support ticket ("Create Ticket" button)'),
-
-  async execute(interaction) {
-    const settings = storage.getGuildSettings(interaction.guild.id);
-    if (!settings.ticketChannelId) {
-      await interaction.reply({ content: '❌ No ticket channel has been set yet. Pick one with `/settings` first.', flags: EPHEMERAL });
-      return;
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle('🎫 Support Ticket')
-      .setDescription('Click the button below. I will message you privately - just write what you need help with.')
-      .setColor(0x5865f2);
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(OPEN_BUTTON_ID).setLabel('Create Ticket').setStyle(ButtonStyle.Primary).setEmoji('🎫')
-    );
-
-    // Ephemeral confirmation (hides the "used /ticket-panel" notice), then a plain channel message.
-    await interaction.reply({ content: '✅ Panel posted below.', flags: EPHEMERAL });
-    await interaction.channel.send({ embeds: [embed], components: [row] });
   },
 };
 
@@ -115,4 +91,4 @@ async function handleCloseTicket(interaction) {
   }, 5000);
 }
 
-module.exports = { ticket, ticketClose, ticketPanel, OPEN_BUTTON_ID, CLOSE_BUTTON_ID, handleOpenTicket, handleCloseTicket };
+module.exports = { ticket, ticketClose, OPEN_BUTTON_ID, CLOSE_BUTTON_ID, handleOpenTicket, handleCloseTicket };

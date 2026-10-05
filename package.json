@@ -1,7 +1,7 @@
 {
   "name": "tylxrrrr-discord-bot",
-  "version": "7.6.0",
-  "description": "Discord bot: info, moderation, utility, ticket, support, welcome, giveaway and statistics commands, plus MacRumors and GitHub release feeds. AutoMod runs via the official Discord AutoMod API. Flat structure with no subfolders.",
+  "version": "7.7.0",
+  "description": "Discord bot: info, moderation, utility, ticket, support, welcome, giveaway, report, rules, partner and statistics commands, plus MacRumors and GitHub release feeds. AutoMod runs via the official Discord AutoMod API. Flat structure with no subfolders.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {

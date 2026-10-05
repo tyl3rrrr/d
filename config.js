@@ -37,7 +37,6 @@ const TWITCH_DEFAULT_NAME = process.env.TWITCH_NAME || '0tylxrrrr';
 
 const links = {
   website: process.env.WEBSITE_URL || 'https://tylxrrrr.is-great.net',
-  antimdm: process.env.ANTIMDM_LINK || 'https://tinyurl.com/vr27mahv',
   discordInvite: process.env.DISCORD_INVITE || '',
   github: process.env.GITHUB_URL || '',
   tos: process.env.TOS_URL || 'https://tylxrrrr.is-great.net/tos-bot.html',
@@ -71,7 +70,7 @@ const changelog = [
   {
     date: '2026-09-20',
     text:
-      'v7.1 (part 1): /appearence, welcome system (/welcome-setup), central permissions (owner/admin/mod role), ' +
+      'v7.1 (part 1): welcome system (/welcome-setup), central permissions (owner/admin/mod role), ' +
       'fixed command registration (auto-sync, no more "Unknown Command"), AutoMod now runs via the ' +
       'Discord AutoMod API (/automod, /automod-words), removed Spotify/developer commands, ' +
       'bot can be user-installed without a server invite, /uptime now resets on process start.',
@@ -82,8 +81,8 @@ const changelog = [
       'v7.2 (part 2): full English translation, /automod setup now deletes ALL existing rules first and ' +
       'recreates them cleanly (fixes persistent "max rules of type" errors), new /automod setup-all rolls ' +
       'the standard rules out to every server at once (bot owner only), /welcome-setup now warns directly ' +
-      'when the required Server Members Intent is missing and also greets bots, /appearence color no longer ' +
-      'fails on a plain single color, /bot-status is now bot-owner only (presence is bot-wide, not per server) ' +
+      'when the required Server Members Intent is missing and also greets bots, ' +
+      '/bot-status is now bot-owner only (presence is bot-wide, not per server) ' +
       'and gained view/set/streaming/activity/clear-activity/auto subcommands.',
   },
   {
@@ -126,7 +125,15 @@ const changelog = [
     text:
       'v7.6.0: new GitHub release feed (/config github), giveaways (/giveaway create, end, reroll, cancel, list) with ' +
       'several winners, entry requirements, automatic draw and reroll, real usage statistics (/stats), /tos and ' +
-      '/privacy-policy. The XP system and all /appearence commands were removed.',
+      '/privacy-policy. The XP system was removed.',
+  },
+  {
+    date: '2026-10-06',
+    text:
+      'v7.7.0: new report system (/report with a moderator panel showing status and handler), server rules with ' +
+      'versions and an Accept button (/rules), partner manager (/partner request, list, remove with automatic ' +
+      'partner posts), and /help and /changelog are now interactive menus. Removed: /ticket-panel, /adm-reload, ' +
+      '/8ball, /dice, /antimdm, /coinflip, /links, /remindme, /web and /bstatnow.',
   },
 ];
 
@@ -136,7 +143,6 @@ function reloadEnv() {
 
 function reloadLinks() {
   links.website = process.env.WEBSITE_URL || links.website;
-  links.antimdm = process.env.ANTIMDM_LINK || links.antimdm;
   links.discordInvite = process.env.DISCORD_INVITE || links.discordInvite;
   links.github = process.env.GITHUB_URL || links.github;
   links.tos = process.env.TOS_URL || links.tos;

@@ -23,6 +23,12 @@ function defaultData() {
     warns: {}, // guildId -> { userId -> [ { reason, date, moderatorId } ] }
     // guildId -> giveawayId -> { id, messageId, channelId, prize, winnersCount, endsAt, status, entries: [...], ... }
     giveaways: {},
+    // guildId -> reportId -> { id, status, reporterId, targetId, reason, messageId, handlerId, ... }   (see report-runtime.js)
+    reports: {},
+    // guildId -> partnerId -> { id, status, name, invite, requesterId, ... }                          (see partner-runtime.js)
+    partners: {},
+    // guildId -> { text, version, history: [...], accepted: { userId: version }, channelId, messageId }  (see rules-runtime.js)
+    rules: {},
     // guildId -> applicationId -> { id, typeId, typeLabel, userId, userTag, answers, status, reviewerId, createdAt }
     applications: {},
     meta: {}, // bot-wide metadata (e.g. commandHash for command auto-sync, bot presence)
@@ -51,7 +57,7 @@ function loadData() {
     for (const g of Object.values(merged.guilds || {})) {
       delete g.xpBoardChannelId;
       delete g.xpBoardMessageId;
-      delete g.appearanceRoleId; // /appearence was removed as well
+      delete g.appearanceRoleId; // leftover of a removed feature
     }
     return merged;
   } catch (err) {
@@ -255,6 +261,74 @@ function pruneGiveaways(days = 60) {
   return removed;
 }
 
+// ---------------------------------------------------------------------------
+// Reports and partner requests - small per-server record collections.
+// Records are numbered per server (#1, #2, ...) with a counter in the server's settings.
+// ---------------------------------------------------------------------------
+const COLLECTIONS = new Set(['reports', 'partners']);
+const MAX_RECORDS_PER_GUILD = 500;
+
+function nextCounter(guildId, key) {
+  if (!data.guilds[guildId]) data.guilds[guildId] = {};
+  const next = (data.guilds[guildId][key] || 0) + 1;
+  data.guilds[guildId][key] = next;
+  saveData(data);
+  return next;
+}
+
+function assertCollection(name) {
+  if (!COLLECTIONS.has(name)) throw new Error(`Unknown collection "${name}".`);
+}
+
+function getRecord(name, guildId, id) {
+  assertCollection(name);
+  return data[name]?.[guildId]?.[String(id)] || null;
+}
+
+function listRecords(name, guildId) {
+  assertCollection(name);
+  return Object.values(data[name]?.[guildId] || {});
+}
+
+function saveRecord(name, guildId, record) {
+  assertCollection(name);
+  if (!data[name]) data[name] = {};
+  if (!data[name][guildId]) data[name][guildId] = {};
+  data[name][guildId][String(record.id)] = record;
+
+  // Keep the file small: when a server has too many records, drop the oldest FINISHED ones.
+  const all = Object.values(data[name][guildId]);
+  if (all.length > MAX_RECORDS_PER_GUILD) {
+    const open = new Set(['open', 'in_progress', 'pending', 'accepted']);
+    const finished = all.filter((r) => !open.has(r.status)).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    for (const r of finished.slice(0, all.length - MAX_RECORDS_PER_GUILD)) delete data[name][guildId][String(r.id)];
+  }
+  saveData(data);
+  return record;
+}
+
+function updateRecord(name, guildId, id, patch) {
+  const rec = getRecord(name, guildId, id);
+  if (!rec) return null;
+  Object.assign(rec, patch);
+  saveData(data);
+  return rec;
+}
+
+// ---------------------------------------------------------------------------
+// Server rules (with versions) - one document per server.
+// ---------------------------------------------------------------------------
+function getRules(guildId) {
+  return data.rules?.[guildId] || null;
+}
+
+function saveRules(guildId, rules) {
+  if (!data.rules) data.rules = {};
+  data.rules[guildId] = rules;
+  saveData(data);
+  return rules;
+}
+
 module.exports = {
   getGuildSettings,
   listGuildIds,
@@ -264,6 +338,13 @@ module.exports = {
   addWarn,
   getWarns,
   clearWarns,
+  nextCounter,
+  getRecord,
+  listRecords,
+  saveRecord,
+  updateRecord,
+  getRules,
+  saveRules,
   getGiveaway,
   listGiveaways,
   saveGiveaway,

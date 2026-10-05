@@ -2,7 +2,7 @@
 // Discord bot - flat structure, no folder scanning.
 //
 // STATUS NOTE: presence (online status, activity, streaming) is managed in
-// presence.js and controlled via /bot-status and /bstatnow. By default the bot
+// presence.js and controlled via /bot-status. By default the bot
 // shows its current server count. Note: for the purple "Streaming" badge,
 // Discord requires the URL to belong to twitch.tv or youtube.com and look like
 // a real URL (incl. "https://www.").
@@ -22,6 +22,10 @@ const { handleMemberAdd } = require('./commands-welcome');
 const presence = require('./presence');
 const github = require('./github');
 const giveawayRuntime = require('./giveaway-runtime');
+const reportRuntime = require('./report-runtime');
+const partnerRuntime = require('./partner-runtime');
+const rulesRuntime = require('./rules-runtime');
+const menus = require('./menus');
 const stats = require('./stats');
 const applyRuntime = require('./apply-runtime');
 const ticketRuntime = require('./ticket-runtime');
@@ -136,6 +140,16 @@ const INTENT_PLANS = [
   { members: true, content: true, note: 'all intents' },
   { members: false, content: true, note: 'WITHOUT Server Members Intent (welcome system inactive)' },
   { members: false, content: false, note: 'WITHOUT Server Members + Message Content Intent (welcome system and !support inactive)' },
+];
+
+// custom-ID prefix -> handler. A NEW button/menu/form only needs one line here.
+const COMPONENT_ROUTES = [
+  { prefix: giveawayRuntime.JOIN_PREFIX, handle: giveawayRuntime.handleButton },
+  { prefix: reportRuntime.PREFIX, handle: reportRuntime.handleButton },
+  { prefix: partnerRuntime.PREFIX, handle: partnerRuntime.handleButton },
+  { prefix: rulesRuntime.PREFIX, handle: (i) => (i.isModalSubmit() ? rulesRuntime.handleModal(i) : rulesRuntime.handleButton(i)) },
+  { prefix: menus.HELP_PREFIX, handle: menus.handleComponent },
+  { prefix: menus.CHANGELOG_PREFIX, handle: menus.handleComponent },
 ];
 
 function createClient(plan) {
@@ -266,13 +280,13 @@ function wire(client, plan) {
             `Unknown command invoked: /${interaction.commandName} - this command is registered at Discord but not in ` +
               `this running process's command list. This almost always means the bot's FILES were updated/deployed ` +
               `but the PROCESS itself was never restarted (editing files or running "npm run deploy" alone does NOT ` +
-              `reload already-running code - only an actual process restart does, e.g. "npm start" again or /adm-reload).`
+              `reload already-running code - only an actual process restart does, e.g. "npm start" again).`
           );
           stats.recordError();
           await interactionGuard.respond(
             interaction,
             '❌ Unknown command. If this command should exist, the bot process most likely needs a full restart ' +
-              '(not just a redeploy) to pick up new code - ask the bot operator to restart it (e.g. `/adm-reload`).'
+              '(not just a redeploy) to pick up new code - ask the bot operator to restart it.'
           );
           return;
         }
@@ -292,10 +306,12 @@ function wire(client, plan) {
         return void (await settingsPanel.handleComponent(interaction));
       }
 
-      // Giveaway "Join" button. Wrapped in the interaction guard like slash commands, so it can
-      // never end in "This interaction failed" (auto-acknowledges after 1.5 s, readable errors).
-      if (interaction.isButton() && interaction.customId.startsWith(giveawayRuntime.JOIN_PREFIX)) {
-        return void (await interactionGuard.run(interaction, () => giveawayRuntime.handleButton(interaction)));
+      // Buttons, menus and forms of the newer systems (giveaways, reports, partners, rules, /help,
+      // /changelog). Each runs inside the interaction guard like a slash command, so it can never end
+      // in "This interaction failed" (auto-acknowledges after 1.5 s, readable errors).
+      if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
+        const route = COMPONENT_ROUTES.find((r) => interaction.customId.startsWith(r.prefix));
+        if (route) return void (await interactionGuard.run(interaction, () => route.handle(interaction)));
       }
 
       if (interaction.isButton()) {
