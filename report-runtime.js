@@ -13,7 +13,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const storage = require('./storage');
 const permissions = require('./permissions');
 const logging = require('./logging');
-const { EPHEMERAL, truncate, errText } = require('./util');
+const { EPHEMERAL, truncate } = require('./util');
 
 const PREFIX = 'rp:';
 const COLLECTION = 'reports';

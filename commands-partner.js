@@ -4,7 +4,6 @@
 
 const { SlashCommandBuilder } = require('discord.js');
 const runtime = require('./partner-runtime');
-const storage = require('./storage');
 const logging = require('./logging');
 const permissions = require('./permissions');
 const { EPHEMERAL, truncate } = require('./util');

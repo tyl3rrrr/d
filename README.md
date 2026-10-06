@@ -1,7 +1,50 @@
-# tylxrrrr Discord Bot (v7.7.0)
+# tylxrrrr Discord Bot (v7.8.0)
 
 A single, flat Node.js folder (no subfolders) built on discord.js v14. This
 README is deliberately the **only** Markdown file in this delivery.
+
+---
+
+## v7.8.0 - /adm-reload is back, AI chat, bot-owner tooling
+
+**`/adm-reload` is back** (**bot owner only** - before it was open to any server administrator, which
+let an admin of ANY server switch the bot off for everybody): replies immediately, then exits the
+process after 3 seconds (needs a process manager with auto-restart to actually come back online,
+see section 12).
+
+**`/help` now always matches reality.** It is generated automatically from the list of commands that
+actually exist at startup, so a command that was removed can never still be listed, and a new one
+never has to be added to the menu by hand.
+
+**`/config bot-logs`** (**bot owner only**) - the bot keeps its own activity log (`botlog.js`): every
+DM it receives (who, and the content), every slash command used anywhere, errors, server joins/leaves
+and AI chats. This is so the bot operator can check the bot is not being used for anything illegal.
+Browse it with `type`, `user` or `search`, or see totals with no options. Entries are kept for
+`BOTLOG_RETENTION_DAYS` days (default 30) and secrets (tokens/keys) are stripped before anything is
+written. **This must be mentioned in your Privacy Policy** (`/privacy-policy`) since it logs DM content.
+
+**`/console`** (**bot owner only**) - the deepest level of the bot: `info` (live PID, memory, uptime,
+AI usage, log size), `cache` (look up a cached guild/user/channel by ID), `eval` (run one line of code
+against the live bot for debugging - 2s timeout, `process.env` is not reachable from it, and the
+output is redacted before it's shown, so a secret can't leak through it), and `restart` (same as
+`/adm-reload`). Every `/console eval` use is written to the bot log.
+
+**AI chat (ChatGPT)** - add `CHATGPT_KEY="sk-..."` to `.env` and the bot can:
+- answer `/ask question` (everyone; `/ask reset` forgets your conversation with it),
+- answer when **@mentioned** in a server channel (`/config ai enabled:false` turns this off per
+  server; without the Message Content Intent it can tell it was mentioned but points to `/ask`
+  instead of guessing what was asked),
+- reply **individually to DMs** that aren't an open ticket or application interview - a normal chat,
+  with a short privacy note on the first reply.
+
+Protection against a surprise bill or abuse: a 5 second cooldown and one request at a time per
+person, a daily limit per person and for the whole bot together (`CHATGPT_DAILY_LIMIT`,
+`CHATGPT_GLOBAL_LIMIT`), questions capped at 1500 characters, and a short per-person conversation
+memory (last 10 messages, forgotten after 30 minutes). Optional `.env`: `CHATGPT_MODEL` (default
+`gpt-5.4-mini`), `CHATGPT_MAX_TOKENS`, `CHATGPT_DAILY_LIMIT`, `CHATGPT_GLOBAL_LIMIT`,
+`BOTLOG_RETENTION_DAYS`. Without `CHATGPT_KEY` these features simply stay silent - nothing breaks.
+
+The per-server on/off switch for @mention replies is `/config ai` (administrators).
 
 ---
 
@@ -126,6 +169,9 @@ because everything is validated locally first.
 | `rules-runtime.js` / `commands-rules.js` | Versioned server rules, Accept button, edit form; the `/rules` command. |
 | `partner-runtime.js` / `commands-partner.js` | Partner requests (invite check), review buttons, automatic posts; the `/partner` command. |
 | `menus.js` | The interactive `/help` and `/changelog` menus. |
+| `ai.js` / `ai-runtime.js` | ChatGPT access (OpenAI API) and the Discord side (@mentions, DMs). |
+| `commands-ai.js` | The `/ask` command. |
+| `botlog.js` | The bot's own activity log (bot-owner only, see `/config bot-logs`). |
 | `stats.js` / `commands-info.js` | Usage counters for `/stats`; `/tos`, `/privacy-policy` and `/stats` commands. |
 | `presence.js` | Bot online status (bot-wide, see the limitation below). |
 | `apply-runtime.js` | DM-interview state machine and Accept/Deny button logic for the applications system (see `commands-apply.js`). |
@@ -364,13 +410,18 @@ live (bot owner only) and explains the minimum number of servers needed.
   anything that inherently needs a server, e.g. moderation, welcome, XP).
 
 ### 8) `/help`
-Generated automatically from `commands.js`, sorted by category (General,
-Moderation, Administration, Welcome, Tickets, Utility, XP, Bot). Shows each
-command's subcommands and required access level.
+Generated automatically from the list of commands that actually exist at startup (`commands.js`),
+grouped into categories (General, Moderation, Administration, Welcome, Applications, Tickets,
+Reports, Rules, Partners, Giveaways, Utility, Bot, AI, Bot owner) with a drop-down to switch between
+them (`menus.js`). A removed command disappears from here automatically; a new one just needs its
+category set in `commands.js`.
 
 ### 9) Restarting the bot
-The bot has no restart command anymore (`/adm-reload` was removed in v7.7.0). Restart the process yourself, or let a
-process manager do it (see section 12). `/reload` (bot owner) still reloads only the `.env`.
+`/adm-reload` and `/console restart` (both bot owner only) fully restart the process:
+they reply immediately, then exit after 3 seconds. Node can't replace its own running code, so this
+only comes back online automatically with a process manager that auto-restarts it (see section 12) -
+without one, start it again yourself after the exit. `/reload` (bot owner) only reloads the `.env`,
+without a restart.
 
 ### 10) Bot status with server count
 Runs automatically in the background (`presence.js`): shows "👀 X servers"
@@ -431,6 +482,8 @@ never changing a single server's values.
 | Category | Commands |
 |---|---|
 | General | `/uptime` `/status` `/changelog` (menu) `/botinfo` `/stats` `/tos` `/privacy-policy` `/ping` `/help` (menu) |
+| AI | `/ask question\|reset` (everyone) + @mentions + individual DM replies |
+| Bot owner only | `/adm-reload` `/console info\|cache\|eval\|restart` `/config bot-logs` |
 | Moderation (mod+) | `/kick` `/ban` `/timeout` `/warn` `/clear` `/slowmode` `/lock` `/unlock` `/nickname` `/role` `/purge-user` `/say` |
 | Administration (admin) | `/settings` (panel) `/config suggest` `/config macrumors` (mod+) `/config github` `/automod-words` `/automod setup\|status\|remove` |
 | Bot owner/superuser | `/reload` (owner) `/bot-status` (owner) `/automod setup-all` (owner) |
@@ -462,7 +515,7 @@ New optional variables: `GITHUB_REPO`, `GITHUB_TOKEN`, `GITHUB_INTERVAL_MIN`, `S
 
 A single `data.json` file in the folder (created automatically on first
 start, listed in `.gitignore`). Contains: `guilds` (per-server settings),
-`warns`, `giveaways`, `reports`, `partners`, `rules`, `meta` (incl. the usage statistics) (incl. the command hash for auto-sync,
+`warns`, `giveaways`, `reports`, `partners`, `rules`, `meta` (incl. usage statistics and the DM privacy-notice flag) (incl. the usage statistics) (incl. the command hash for auto-sync,
 presence configuration). Writes atomically and automatically backs up the
 file if it's ever corrupted (`data.json.corrupt-*`) instead of losing data.
 

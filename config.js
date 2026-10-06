@@ -37,8 +37,6 @@ const TWITCH_DEFAULT_NAME = process.env.TWITCH_NAME || '0tylxrrrr';
 
 const links = {
   website: process.env.WEBSITE_URL || 'https://tylxrrrr.is-great.net',
-  discordInvite: process.env.DISCORD_INVITE || '',
-  github: process.env.GITHUB_URL || '',
   tos: process.env.TOS_URL || 'https://tylxrrrr.is-great.net/tos-bot.html',
   privacy: process.env.PRIVACY_URL || 'https://tylxrrrr.is-great.net/privacy-bot.html',
 };
@@ -135,6 +133,15 @@ const changelog = [
       'partner posts), and /help and /changelog are now interactive menus. Removed: /ticket-panel, /adm-reload, ' +
       '/8ball, /dice, /antimdm, /coinflip, /links, /remindme, /web and /bstatnow.',
   },
+  {
+    date: '2026-10-07',
+    text:
+      'v7.8.0: /adm-reload is back, /help now lists exactly the commands that currently exist, ' +
+      'the bot owner can review the bot\'s own activity log (/config bot-logs: DMs received, ' +
+      'commands used, errors, AI chats) to prevent misuse, /console gives the bot owner deep ' +
+      'process/debug access, and the bot now has AI chat built in (/ask, @mentioning the bot, ' +
+      'and individual DM replies) powered by ChatGPT (CHATGPT_KEY in .env).',
+  },
 ];
 
 function reloadEnv() {
@@ -143,8 +150,6 @@ function reloadEnv() {
 
 function reloadLinks() {
   links.website = process.env.WEBSITE_URL || links.website;
-  links.discordInvite = process.env.DISCORD_INVITE || links.discordInvite;
-  links.github = process.env.GITHUB_URL || links.github;
   links.tos = process.env.TOS_URL || links.tos;
   links.privacy = process.env.PRIVACY_URL || links.privacy;
 }

@@ -4,7 +4,7 @@
 // index.js, deploy-commands.js and command-tools.js only import this file.
 //
 // Eintrag: [command, { category, access, scope }]
-//   category: general | moderation | admin | welcome | apply | tickets | reports | rules | partner | giveaway | utility | bot | ai
+//   category: general | moderation | admin | welcome | apply | tickets | reports | rules | partner | giveaway | utility | bot | ai | owner
 //   access  : everyone | mod | admin | bot-owner | superuser  (or { default, sub: {...} })
 //   scope   : 'anywhere' (servers, DMs, user install) | 'guild' (only servers the bot is in)
 //
@@ -17,6 +17,8 @@ const extra = require('./commands-extra');
 const utility = require('./commands-utility');
 const { settings } = require('./commands-settings');
 const { ticket, ticketClose } = require('./commands-tickets');
+const { admReload, consoleCmd } = require('./commands-admin');
+const { ask } = require('./commands-ai');
 const menus = require('./menus');
 const { automodWords } = require('./commands-automod-words');
 const { automodCmd } = require('./commands-automod');
@@ -39,6 +41,9 @@ const registry = [
   [menus.changelog, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [core.botinfo, { category: 'bot', access: 'everyone', scope: 'anywhere' }],
   [stats, { category: 'bot', access: 'everyone', scope: 'anywhere' }],
+  [admReload, { category: 'owner', access: 'bot-owner', scope: 'anywhere' }],
+  [consoleCmd, { category: 'owner', access: 'bot-owner', scope: 'anywhere' }],
+  [ask, { category: 'ai', access: 'everyone', scope: 'anywhere' }],
   [tos, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [privacyPolicy, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [extra.ping, { category: 'general', access: 'everyone', scope: 'anywhere' }],
@@ -62,7 +67,7 @@ const registry = [
 
   // Administration
   [settings, { category: 'admin', access: 'admin', scope: 'guild' }],
-  [config, { category: 'admin', access: { default: 'admin', sub: { macrumors: 'mod' } }, scope: 'guild' }],
+  [config, { category: 'admin', access: { default: 'admin', sub: { macrumors: 'mod', 'bot-logs': 'bot-owner' } }, scope: 'guild' }],
   [automodWords, { category: 'admin', access: 'admin', scope: 'guild' }],
   [automodCmd, { category: 'admin', access: { default: 'admin', sub: { 'setup-all': 'bot-owner' } }, scope: 'guild' }],
 

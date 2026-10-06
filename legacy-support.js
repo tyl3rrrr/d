@@ -14,7 +14,6 @@
 //
 // Safeguard against double processing: each message ID is only handled once.
 
-const storage = require('./storage');
 const ticketRuntime = require('./ticket-runtime');
 const applyRuntime = require('./apply-runtime');
 const { sleep } = require('./util');

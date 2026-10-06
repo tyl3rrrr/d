@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Events, Collection, Options, Partials } = require('discord.js');
 
-const config = require('./config');
+const config = require('./config'); // must stay first: loading it reads the .env file (dotenv) for every other module
 const commandList = require('./commands');
 const { OPEN_BUTTON_ID, CLOSE_BUTTON_ID, handleOpenTicket, handleCloseTicket } = require('./commands-tickets');
 const legacySupport = require('./legacy-support');
@@ -27,13 +27,14 @@ const partnerRuntime = require('./partner-runtime');
 const rulesRuntime = require('./rules-runtime');
 const menus = require('./menus');
 const stats = require('./stats');
+const botlog = require('./botlog');
+const aiRuntime = require('./ai-runtime');
 const applyRuntime = require('./apply-runtime');
 const ticketRuntime = require('./ticket-runtime');
 const settingsPanel = require('./commands-settings');
 const macrumors = require('./macrumors');
 const interactionGuard = require('./interaction-guard');
-const logging = require('./logging');
-const { EPHEMERAL, errText } = require('./util');
+const { errText } = require('./util');
 
 // ---------------------------------------------------------------------------
 // BUGFIX "infinite/duplicate messages": the most likely cause was that the bot
@@ -229,6 +230,7 @@ function wire(client, plan) {
     macrumors.start(readyClient); // posts new MacRumors articles to the channels set with /config macrumors
     github.start(readyClient); // posts new GitHub releases to the channels set with /config github
     giveawayRuntime.start(readyClient); // automatic draw when a giveaway's time is up
+    botlog.start(); // periodic cleanup of old bot-log entries
 
     // Auto-sync: makes sure Discord has exactly the commands this code knows
     // (the main cause of "Unknown Command"). AUTO_DEPLOY=false turns it off.
@@ -247,10 +249,12 @@ function wire(client, plan) {
   client.on(Events.GuildCreate, (guild) => {
     automod.provisionGuild(client, guild).catch(() => {});
     presence.apply(client).catch(() => {}); // server count changed (in automatic mode)
+    botlog.log({ type: 'guild', guildId: guild.id, guildName: guild.name, text: `Joined server (owner ${guild.ownerId}, ${guild.memberCount ?? '?'} members).` });
   });
 
-  client.on(Events.GuildDelete, () => {
+  client.on(Events.GuildDelete, (guild) => {
     presence.apply(client).catch(() => {});
+    botlog.log({ type: 'guild', guildId: guild.id, guildName: guild.name, text: 'Removed from server.' });
   });
 
   if (plan.members) client.on(Events.GuildMemberAdd, (member) => handleMemberAdd(member));
@@ -280,13 +284,13 @@ function wire(client, plan) {
             `Unknown command invoked: /${interaction.commandName} - this command is registered at Discord but not in ` +
               `this running process's command list. This almost always means the bot's FILES were updated/deployed ` +
               `but the PROCESS itself was never restarted (editing files or running "npm run deploy" alone does NOT ` +
-              `reload already-running code - only an actual process restart does, e.g. "npm start" again).`
+              `reload already-running code - only an actual process restart does, e.g. "npm start" again, or /adm-reload).`
           );
           stats.recordError();
           await interactionGuard.respond(
             interaction,
             '❌ Unknown command. If this command should exist, the bot process most likely needs a full restart ' +
-              '(not just a redeploy) to pick up new code - ask the bot operator to restart it.'
+              '(not just a redeploy) to pick up new code - ask the bot operator to restart it (e.g. `/adm-reload`).'
           );
           return;
         }
@@ -296,6 +300,15 @@ function wire(client, plan) {
         // slow commands) and turns errors into clear messages (never "did not respond").
         await interactionGuard.run(interaction, async () => {
           if (!(await permissions.guardInteraction(interaction, command))) return;
+          botlog.log({
+            type: 'command',
+            userId: interaction.user.id,
+            userTag: interaction.user.tag,
+            guildId: interaction.guildId,
+            guildName: interaction.guild ? interaction.guild.name : null,
+            channelId: interaction.channelId,
+            text: botlog.commandText(interaction),
+          });
           await command.execute(interaction);
         });
         return;
@@ -340,11 +353,23 @@ function wire(client, plan) {
     // active application interview always works, even under the most
     // restrictive intent plan.
     if (!message.guild) {
+      botlog.log({
+        type: 'dm',
+        userId: message.author.id,
+        userTag: message.author.tag,
+        channelId: message.channelId,
+        text: message.content || '',
+        attachments: [...message.attachments.values()].map((a) => ({ name: a.name, url: a.url })),
+      });
       try {
-        // Ticket or something else? Only a user with an OPEN ticket is handled as a ticket;
-        // every other DM goes on to the application interview handler (see ticket-runtime.js).
+        // Ticket or an application interview? Only a user with one of those OPEN is handled that
+        // way; every other DM falls through to the AI (see ai-runtime.js) - the bot replies
+        // individually, like a normal chat.
         const isTicket = await ticketRuntime.handleDM(message);
-        if (!isTicket) await applyRuntime.handleDMAnswer(message);
+        if (!isTicket) {
+          const isApplication = await applyRuntime.handleDMAnswer(message);
+          if (!isApplication) await aiRuntime.handleDM(message);
+        }
       } catch (error) {
         console.error('Error while processing a DM:', error);
       }
@@ -353,6 +378,8 @@ function wire(client, plan) {
 
     try {
       if (plan.content) await legacySupport.handleMessage(message);
+      const handledMention = await aiRuntime.handleMention(message, { hasContent: plan.content });
+      if (!handledMention) return;
     } catch (error) {
       console.error('Error while processing a message:', error);
     }
