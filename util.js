@@ -32,6 +32,7 @@ function errText(err) {
 const SECRET_ENV_NAME = /(TOKEN|KEY|SECRET|PASSWORD)/i;
 const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9_-]{20,}/g, // OpenAI-style keys
+  /AIza[0-9A-Za-z_-]{30,}/g, // Google/Gemini API keys
   /[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}/g, // Discord bot tokens
 ];
 function redactSecrets(text) {

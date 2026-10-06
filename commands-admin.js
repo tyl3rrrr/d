@@ -74,7 +74,7 @@ async function runInfo(interaction) {
       { name: 'Memory (RSS / heap)', value: `${(mem.rss / 1048576).toFixed(1)} MB / ${(mem.heapUsed / 1048576).toFixed(1)} MB`, inline: true },
       { name: 'Guilds cached', value: `${interaction.client.guilds.cache.size}`, inline: true },
       { name: 'Commands loaded', value: `${interaction.client.commands.size}`, inline: true },
-      { name: 'AI', value: ai_.configured ? `on (${ai_.model})\n${ai_.messagesToday} msgs today, ${ai_.usersToday} users` : 'not configured', inline: true },
+      { name: 'AI', value: ai_.configured ? `${ai_.provider} (${ai_.model})\n${ai_.messagesToday} msgs today, ${ai_.usersToday} users` : 'not configured', inline: true },
       { name: 'Bot log', value: `${logCounts.total} entries`, inline: true },
       { name: 'Data file', value: path.basename(storage.DATA_FILE || 'data.json'), inline: true }
     );

@@ -142,6 +142,12 @@ const changelog = [
       'process/debug access, and the bot now has AI chat built in (/ask, @mentioning the bot, ' +
       'and individual DM replies) powered by ChatGPT (CHATGPT_KEY in .env).',
   },
+  {
+    date: '2026-10-07',
+    text:
+      'v7.8.1: the AI now runs on Google Gemini (free, GEMINI_KEY in .env); OpenAI/ChatGPT stays available as ' +
+      'an alternative. Clearer messages when a free limit or credit is used up.',
+  },
 ];
 
 function reloadEnv() {

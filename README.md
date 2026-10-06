@@ -1,4 +1,4 @@
-# tylxrrrr Discord Bot (v7.8.0)
+# tylxrrrr Discord Bot (v7.8.1)
 
 A single, flat Node.js folder (no subfolders) built on discord.js v14. This
 README is deliberately the **only** Markdown file in this delivery.
@@ -29,7 +29,7 @@ against the live bot for debugging - 2s timeout, `process.env` is not reachable 
 output is redacted before it's shown, so a secret can't leak through it), and `restart` (same as
 `/adm-reload`). Every `/console eval` use is written to the bot log.
 
-**AI chat (ChatGPT)** - add `CHATGPT_KEY="sk-..."` to `.env` and the bot can:
+**AI chat** - the bot can:
 - answer `/ask question` (everyone; `/ask reset` forgets your conversation with it),
 - answer when **@mentioned** in a server channel (`/config ai enabled:false` turns this off per
   server; without the Message Content Intent it can tell it was mentioned but points to `/ask`
@@ -37,12 +37,19 @@ output is redacted before it's shown, so a secret can't leak through it), and `r
 - reply **individually to DMs** that aren't an open ticket or application interview - a normal chat,
   with a short privacy note on the first reply.
 
-Protection against a surprise bill or abuse: a 5 second cooldown and one request at a time per
-person, a daily limit per person and for the whole bot together (`CHATGPT_DAILY_LIMIT`,
-`CHATGPT_GLOBAL_LIMIT`), questions capped at 1500 characters, and a short per-person conversation
-memory (last 10 messages, forgotten after 30 minutes). Optional `.env`: `CHATGPT_MODEL` (default
-`gpt-5.4-mini`), `CHATGPT_MAX_TOKENS`, `CHATGPT_DAILY_LIMIT`, `CHATGPT_GLOBAL_LIMIT`,
-`BOTLOG_RETENTION_DAYS`. Without `CHATGPT_KEY` these features simply stay silent - nothing breaks.
+**Setup (v7.8.1: Google Gemini, free):** create a key at https://aistudio.google.com ("Get API key",
+no credit card) and put `GEMINI_KEY="AIza..."` into `.env`, then `/reload` or restart. If the bot says the
+key is not accepted, restrict the key to the "Generative Language API" in the Google Cloud Console
+(APIs & Services -> Credentials). Alternative: `CHATGPT_KEY="sk-..."` (OpenAI). **That needs paid API
+credit - a free ChatGPT account does not include it.** If both keys exist, Gemini is used. Default models:
+`gemini-2.5-flash` (falls back to `gemini-3.5-flash` if Google retired it) / `gpt-5.4-mini`.
+
+Protection against abuse and the free limits (the free Gemini tier only allows a few hundred requests
+per day): a 5 second cooldown and one request at a time per person, a daily limit per person and for the
+whole bot together (`AI_DAILY_LIMIT` default 40, `AI_GLOBAL_LIMIT` default 400), questions capped at 1500
+characters, and a short per-person conversation memory (last 10 messages, forgotten after 30 minutes).
+Optional `.env`: `GEMINI_MODEL`, `CHATGPT_MODEL`, `AI_MAX_TOKENS`, `AI_DAILY_LIMIT`, `AI_GLOBAL_LIMIT`,
+`BOTLOG_RETENTION_DAYS`. Without a key these features simply stay silent - nothing breaks.
 
 The per-server on/off switch for @mention replies is `/config ai` (administrators).
 
@@ -169,7 +176,7 @@ because everything is validated locally first.
 | `rules-runtime.js` / `commands-rules.js` | Versioned server rules, Accept button, edit form; the `/rules` command. |
 | `partner-runtime.js` / `commands-partner.js` | Partner requests (invite check), review buttons, automatic posts; the `/partner` command. |
 | `menus.js` | The interactive `/help` and `/changelog` menus. |
-| `ai.js` / `ai-runtime.js` | ChatGPT access (OpenAI API) and the Discord side (@mentions, DMs). |
+| `ai.js` / `ai-runtime.js` | AI access (Google Gemini, optionally OpenAI) and the Discord side (@mentions, DMs). |
 | `commands-ai.js` | The `/ask` command. |
 | `botlog.js` | The bot's own activity log (bot-owner only, see `/config bot-logs`). |
 | `stats.js` / `commands-info.js` | Usage counters for `/stats`; `/tos`, `/privacy-policy` and `/stats` commands. |

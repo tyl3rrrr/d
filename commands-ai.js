@@ -26,7 +26,7 @@ const ask = {
     }
 
     if (!ai.isConfigured()) {
-      await interaction.reply({ content: '❌ The AI is not set up yet (the bot owner has to add `CHATGPT_KEY` to the .env file).', flags: EPHEMERAL });
+      await interaction.reply({ content: '❌ The AI is not set up yet (the bot owner has to add `GEMINI_KEY` to the .env file).', flags: EPHEMERAL });
       return;
     }
 
