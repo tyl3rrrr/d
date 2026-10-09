@@ -21,6 +21,7 @@ const permissions = require('./permissions');
 const { handleMemberAdd } = require('./commands-welcome');
 const presence = require('./presence');
 const github = require('./github');
+const dashboardBridge = require('./dashboard-bridge');
 const giveawayRuntime = require('./giveaway-runtime');
 const reportRuntime = require('./report-runtime');
 const partnerRuntime = require('./partner-runtime');
@@ -229,6 +230,7 @@ function wire(client, plan) {
     setInterval(() => presence.apply(readyClient), 10 * 60 * 1000);
     macrumors.start(readyClient); // posts new MacRumors articles to the channels set with /config macrumors
     github.start(readyClient); // posts new GitHub releases to the channels set with /config github
+    dashboardBridge.start(readyClient); // outbound-only bridge to the Supabase-backed dashboard
     giveawayRuntime.start(readyClient); // automatic draw when a giveaway's time is up
     botlog.start(); // periodic cleanup of old bot-log entries
 

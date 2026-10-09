@@ -1,9 +1,12 @@
-# tylxrrrr Discord Bot (v7.8.3)
+# tylxrrrr Discord Bot (v7.9.1)
 
-A single, flat Node.js folder (no subfolders) built on discord.js v14. This
-README is deliberately the **only** Markdown file in this delivery.
+The bot source itself uses a flat Node.js structure built on discord.js v14. The optional `dashboard/` folder contains the static InfinityFree dashboard, Supabase Edge Function, SQL schema, and setup guide.
 
 ---
+
+## v7.9.1 — Supabase dashboard bridge
+
+Added a Supabase-backed dashboard for InfinityFree. Supabase handles Discord login and securely relays setting changes; the bot uses outbound HTTPS polling only. See `dashboard/README-DASHBOARD.md` for setup.
 
 ## v7.8.3 - custom GitHub release watches
 
