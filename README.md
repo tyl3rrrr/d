@@ -1,9 +1,21 @@
-# tylxrrrr Discord Bot (v7.8.1)
+# tylxrrrr Discord Bot (v7.8.3)
 
 A single, flat Node.js folder (no subfolders) built on discord.js v14. This
 README is deliberately the **only** Markdown file in this delivery.
 
 ---
+
+## v7.8.3 - custom GitHub release watches
+
+**`/github-check add url channel`** (moderators, administrators and server owner) watches a public GitHub
+repository and posts newly published releases in the selected text/announcement channel. Example URL:
+`https://github.com/owner/repository`. When a watch is first added, existing releases are remembered and
+are not spam-posted.
+
+**`/github-check list`** shows this server's watched repositories and destinations. **`/github-check remove url`**
+removes one watch. Watch lists are stored per server in `data.json`; servers do not affect each other's settings.
+The existing `/config github` global feed remains available. Checks run at the interval set by
+`GITHUB_INTERVAL_MIN` (default 10 minutes). `GITHUB_TOKEN` is optional and can raise the public API rate limit.
 
 ## v7.8.0 - /adm-reload is back, AI chat, bot-owner tooling
 
@@ -171,7 +183,7 @@ because everything is validated locally first.
 | `storage.js` | One `data.json` file in the folder, settings separated per server (`guilds[guildId]`), giveaways separated per server (`giveaways[guildId][id]`). Writes atomically (temp file + rename), backs up a corrupted `data.json` instead of overwriting it. |
 | `automod-api.js` | AutoMod **exclusively via the official Discord AutoMod API** - no local message filter in the bot code anymore. |
 | `logging.js` | Central logging into the channel set via `/settings log-channel`. |
-| `github.js` | GitHub release feed (`/config github`). |
+| `github.js` / `commands-github.js` | GitHub release feeds (`/config github`, `/github-check add\|list\|remove`). |
 | `giveaway-runtime.js` / `commands-giveaway.js` | Giveaway logic (join button, automatic draw, reroll) and the `/giveaway` command. |
 | `report-runtime.js` / `commands-report.js` | Report panel with status and handler; the `/report` command. |
 | `rules-runtime.js` / `commands-rules.js` | Versioned server rules, Accept button, edit form; the `/rules` command. |
@@ -493,7 +505,7 @@ never changing a single server's values.
 | AI | `/ask question\|reset`, `/code language info` (everyone; generated file is sent by DM) + @mentions + individual DM replies |
 | Bot owner only | `/adm-reload` `/console info\|cache\|eval\|restart` `/config bot-logs` |
 | Moderation (mod+) | `/kick` `/ban` `/timeout` `/warn` `/clear` `/slowmode` `/lock` `/unlock` `/nickname` `/role` `/purge-user` `/say` |
-| Administration (admin) | `/settings` (panel) `/config suggest` `/config macrumors` (mod+) `/config github` `/automod-words` `/automod setup\|status\|remove` |
+| Administration (admin) | `/settings` (panel) `/config suggest` `/config macrumors` (mod+) `/config github` `/github-check add\|list\|remove` (mod+) `/automod-words` `/automod setup\|status\|remove` |
 | Bot owner/superuser | `/reload` (owner) `/bot-status` (owner) `/automod setup-all` (owner) |
 | Welcome | `/welcome-setup` |
 | Applications | `/apply-config` (admin) `/apply-panel` (admin) (+ apply/Accept/Deny buttons) |

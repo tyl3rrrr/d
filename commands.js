@@ -31,6 +31,7 @@ const { partner } = require('./commands-partner');
 const { tos, privacyPolicy, stats } = require('./commands-info');
 const { applyConfig, applyPanel } = require('./commands-apply');
 const { config } = require('./commands-config');
+const { githubCheck } = require('./commands-github');
 
 const help = menus.buildHelpCommand();
 
@@ -69,6 +70,7 @@ const registry = [
   // Administration
   [settings, { category: 'admin', access: 'admin', scope: 'guild' }],
   [config, { category: 'admin', access: { default: 'admin', sub: { macrumors: 'mod', 'bot-logs': 'bot-owner' } }, scope: 'guild' }],
+  [githubCheck, { category: 'admin', access: 'mod', scope: 'guild' }],
   [automodWords, { category: 'admin', access: 'admin', scope: 'guild' }],
   [automodCmd, { category: 'admin', access: { default: 'admin', sub: { 'setup-all': 'bot-owner' } }, scope: 'guild' }],
 
