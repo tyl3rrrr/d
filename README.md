@@ -31,13 +31,14 @@ output is redacted before it's shown, so a secret can't leak through it), and `r
 
 **AI chat** - the bot can:
 - answer `/ask question` (everyone; `/ask reset` forgets your conversation with it),
+- generate a single source file with `/code language info` and DM the attachment to the requester (supported types include HTML, CSS, JavaScript, TypeScript, Python, JSON, Markdown, SQL, XML, SVG, Java, C/C++, C#, PHP, Ruby, Go, Rust and shell scripts). Generated code is not executed by the bot,
 - answer when **@mentioned** in a server channel (`/config ai enabled:false` turns this off per
   server; without the Message Content Intent it can tell it was mentioned but points to `/ask`
   instead of guessing what was asked),
 - reply **individually to DMs** that aren't an open ticket or application interview - a normal chat,
   with a short privacy note on the first reply.
 
-**Setup (v7.8.1: Google Gemini, free):** create a key at https://aistudio.google.com ("Get API key",
+**Setup (v7.8.2: Google Gemini, free):** create a key at https://aistudio.google.com ("Get API key",
 no credit card) and put `GEMINI_KEY="AIza..."` into `.env`, then `/reload` or restart. If the bot says the
 key is not accepted, restrict the key to the "Generative Language API" in the Google Cloud Console
 (APIs & Services -> Credentials). Alternative: `CHATGPT_KEY="sk-..."` (OpenAI). **That needs paid API
@@ -177,7 +178,7 @@ because everything is validated locally first.
 | `partner-runtime.js` / `commands-partner.js` | Partner requests (invite check), review buttons, automatic posts; the `/partner` command. |
 | `menus.js` | The interactive `/help` and `/changelog` menus. |
 | `ai.js` / `ai-runtime.js` | AI access (Google Gemini, optionally OpenAI) and the Discord side (@mentions, DMs). |
-| `commands-ai.js` | The `/ask` command. |
+| `commands-ai.js` | The `/ask` and `/code` commands. |
 | `botlog.js` | The bot's own activity log (bot-owner only, see `/config bot-logs`). |
 | `stats.js` / `commands-info.js` | Usage counters for `/stats`; `/tos`, `/privacy-policy` and `/stats` commands. |
 | `presence.js` | Bot online status (bot-wide, see the limitation below). |
@@ -489,7 +490,7 @@ never changing a single server's values.
 | Category | Commands |
 |---|---|
 | General | `/uptime` `/status` `/changelog` (menu) `/botinfo` `/stats` `/tos` `/privacy-policy` `/ping` `/help` (menu) |
-| AI | `/ask question\|reset` (everyone) + @mentions + individual DM replies |
+| AI | `/ask question\|reset`, `/code language info` (everyone; generated file is sent by DM) + @mentions + individual DM replies |
 | Bot owner only | `/adm-reload` `/console info\|cache\|eval\|restart` `/config bot-logs` |
 | Moderation (mod+) | `/kick` `/ban` `/timeout` `/warn` `/clear` `/slowmode` `/lock` `/unlock` `/nickname` `/role` `/purge-user` `/say` |
 | Administration (admin) | `/settings` (panel) `/config suggest` `/config macrumors` (mod+) `/config github` `/automod-words` `/automod setup\|status\|remove` |

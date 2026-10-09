@@ -232,10 +232,69 @@ async function ask({ scope, userId, userName, text, place, botName, isOwner = fa
   }
 }
 
+
+// Generate a standalone source file without using or changing conversation history.
+// It shares the existing provider selection, cooldowns and daily AI usage limits.
+async function generateCode({ userId, userName, language, info, isOwner = false }) {
+  const prov = provider();
+  if (!prov) return { ok: false, reason: 'The AI is not set up yet (the bot owner has to add `GEMINI_KEY` to the .env file).' };
+
+  const limited = checkLimits(userId, isOwner);
+  if (limited) return { ok: false, reason: limited };
+
+  const lang = String(language || '').trim().slice(0, 30);
+  const request = String(info || '').trim().slice(0, INPUT_MAX_CHARS);
+  if (!lang || !request) return { ok: false, reason: 'Please provide both a programming language and a description.' };
+
+  const system = [
+    'You are a careful software developer generating one source file for a Discord user.',
+    `The requested language or file type is: ${lang}.`,
+    `The requester is ${String(userName || 'the user').replace(/[^\p{L}\p{N} _.-]/gu, '').slice(0, 32) || 'the user'}.`,
+    'Return only the complete contents of the requested file. Do not use Markdown fences, introductions, explanations, or multiple files.',
+    'Write safe, maintainable code and include brief comments only where useful.',
+    'Do not include secrets, API keys, tokens, or instructions to execute destructive actions.',
+  ].join('\n');
+
+  // No history is passed: each file is generated from this request only.
+  const args = { system, history: [], question: `Create one complete ${lang} source file according to this specification:\n${request}` };
+  const primary = modelName();
+  const models = prov === 'gemini' && !clean('GEMINI_MODEL') ? [primary, GEMINI_FALLBACK_MODEL] : [primary];
+
+  inFlight.add(userId);
+  cooldowns.set(userId, Date.now());
+  try {
+    let res;
+    for (const model of models) {
+      res = prov === 'gemini' ? await callGemini({ ...args, model }) : await callOpenAI({ ...args, model });
+      if (res.ok || res.status !== 404) {
+        if (res.ok) lastModelUsed = model;
+        break;
+      }
+    }
+
+    if (!res.ok) {
+      if (res.reason) return { ok: false, reason: res.reason };
+      console.warn(`AI (${prov}) code generation: HTTP ${res.status}: ${truncate(noSecrets(res.body || ''), 300)}`);
+      return { ok: false, reason: failure(prov, res.status, res.body) };
+    }
+
+    rollDay();
+    usage.perUser.set(userId, (usage.perUser.get(userId) || 0) + 1);
+    usage.global += 1;
+    return { ok: true, text: res.text };
+  } catch (err) {
+    console.warn(`AI (${prov}) code generation failed:`, noSecrets(errText(err)));
+    const timedOut = err && (err.name === 'TimeoutError' || err.name === 'AbortError');
+    return { ok: false, reason: timedOut ? 'The AI took too long to generate the file. Please try again.' : 'I could not reach the AI service right now. Please try again later.' };
+  } finally {
+    inFlight.delete(userId);
+  }
+}
+
 // Used by /console info.
 function stats() {
   rollDay();
   return { configured: isConfigured(), provider: provider(), model: lastModelUsed || modelName(), usersToday: usage.perUser.size, messagesToday: usage.global, conversations: histories.size };
 }
 
-module.exports = { isConfigured, ask, resetHistory, stats, systemPrompt, checkLimits, INPUT_MAX_CHARS };
+module.exports = { isConfigured, ask, generateCode, resetHistory, stats, systemPrompt, checkLimits, INPUT_MAX_CHARS };

@@ -18,7 +18,7 @@ const utility = require('./commands-utility');
 const { settings } = require('./commands-settings');
 const { ticket, ticketClose } = require('./commands-tickets');
 const { admReload, consoleCmd } = require('./commands-admin');
-const { ask } = require('./commands-ai');
+const { ask, code } = require('./commands-ai');
 const menus = require('./menus');
 const { automodWords } = require('./commands-automod-words');
 const { automodCmd } = require('./commands-automod');
@@ -44,6 +44,7 @@ const registry = [
   [admReload, { category: 'owner', access: 'bot-owner', scope: 'anywhere' }],
   [consoleCmd, { category: 'owner', access: 'bot-owner', scope: 'anywhere' }],
   [ask, { category: 'ai', access: 'everyone', scope: 'anywhere' }],
+  [code, { category: 'ai', access: 'everyone', scope: 'anywhere' }],
   [tos, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [privacyPolicy, { category: 'general', access: 'everyone', scope: 'anywhere' }],
   [extra.ping, { category: 'general', access: 'everyone', scope: 'anywhere' }],
